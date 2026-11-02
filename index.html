@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>音めがね</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <h1>音めがね</h1>
+    <p class="lead">音の高さを上下の位置に、大きさを線の太さにして描きます。</p>
+  </header>
+
+  <main>
+    <canvas id="scope" aria-label="音の形。上ほど高い音、太いほど大きい音"></canvas>
+    <p class="legend">上ほど高い音・太いほど大きい音。下の帯は、高さの定まらない音（息・雑音など）の大きさ。縦線が「いま」。</p>
+
+    <p id="now-text" class="now-text" aria-live="polite">止まっています</p>
+
+    <div class="controls">
+      <button id="btn-test" type="button">試しの音</button>
+      <label class="button" for="file-input">音のファイル</label>
+      <input id="file-input" type="file" accept="audio/*">
+      <button id="btn-mic" type="button">マイク</button>
+      <button id="btn-stop" type="button">止める</button>
+    </div>
+
+    <section id="mic-panel" class="mic-panel" hidden>
+      <div id="mic-state" class="mic-state" data-state="calibrating" aria-live="polite">
+        <span id="mic-label" class="mic-label"></span>
+        <div class="mic-meter" aria-hidden="true"><div id="mic-meter-fill" class="mic-meter-fill"></div></div>
+        <p id="mic-reason" class="mic-reason"></p>
+      </div>
+      <h2>声のための自動処理（切るように頼んだもの）</h2>
+      <ul id="settings" class="settings"></ul>
+      <p id="settings-extra" class="settings-extra"></p>
+    </section>
+  </main>
+
+  <footer>
+    <p>医療機器ではありません。聞こえを診断・治療・改善するものではありません。</p>
+    <p>音のファイルとマイクの音は、この端末の中だけで扱い、外へ送りません。</p>
+  </footer>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
