@@ -1,12 +1,12 @@
 // 画面のつなぎ：音の入口（試しの音・マイク・曲）→ 読み取り → 描く。
 
 // ?v= は版の番号。push のあとも、ブラウザに残った前の版を使わず新しい版を読ませる（変えたら index.html とそろえて上げる）
-import { yin, rmsDb, peakAbs, decimate } from './pitch.js?v=3';
-import { Scope } from './draw.js?v=3';
-import { decodeFile, makeTestBuffer, playBuffer, playSong } from './source-file.js?v=3';
-import { OnsetTracker } from './rhythm.js?v=3';
-import { LineSmoother } from './smooth.js?v=3';
-import { openMic, describeSettings, MicWatch } from './source-mic.js?v=3';
+import { yin, rmsDb, peakAbs, decimate } from './pitch.js?v=4';
+import { Scope } from './draw.js?v=4';
+import { decodeFile, makeTestBuffer, playBuffer, playSong } from './source-file.js?v=4';
+import { OnsetTracker } from './rhythm.js?v=4';
+import { LineSmoother } from './smooth.js?v=4';
+import { openMic, describeSettings, MicWatch } from './source-mic.js?v=4';
 
 const $ = (id) => document.getElementById(id);
 const scope = new Scope($('scope'));
