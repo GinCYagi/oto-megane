@@ -7,11 +7,13 @@
 //   音：{ midi, midis, beats, dyn }。休符は midi: null・midis: []。和音は midis に全部、midi は一番上の音。
 //       beats は 4 分音符を 1 とした長さ。dyn はその音の前に書いた強弱（なければ null）。
 //   番の行：{ notes, syllables: [{ text, ruby }], lineNo }。ruby は読みが字と違うときだけ入る。
+// 「移調:」（半音いくつ上げ下げするか）は、読んだ音には掛けない（楽譜は元の本の高さのまま）。
+// 鳴らす時刻を並べる timeline・accompaniment で掛ける。
 // 間違いがあっても止めずに読み進め、行の番号を付けて errors に集める（打った人が一度に直せるように）。
 
 const NOTE_BASE = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 const DUR = new Set([1, 2, 4, 8, 16]);
-const META_KEYS = ['作詞', '作曲', '出典', '拍子', '速さ', '構成'];
+const META_KEYS = ['作詞', '作曲', '出典', '拍子', '速さ', '構成', '移調'];
 const INSTRUMENTAL = new Set(['前奏', '間奏', '後奏']); // 歌のない、伴奏だけの部分
 const PART_RE = /^(右手|左手)\d?$/;                       // 伴奏の声部：右手・右手2・左手・左手2 …
 export const DYNAMICS = { pp: 40, p: 55, mp: 70, mf: 85, f: 100, ff: 115 }; // 強弱 → 鍵盤の強さ（MIDI の velocity）
@@ -256,6 +258,8 @@ export function parseScore(text) {
   if (!out.melody.length) err(0, '[旋律] がありません');
   if (!out.verses.length) err(0, '番（[1番] など）がありません');
   if (!out.meta['速さ'] || !(Number(out.meta['速さ']) > 0)) err(0, '「速さ:」（4 分音符が 1 分に何回か）がありません');
+  if (out.meta['移調'] !== undefined && !/^[+-]?\d+$/.test(out.meta['移調'].trim())) err(0, '「移調:」は、半音いくつ上げ下げするかを整数で書きます（例：-2）');
+  else if (Math.abs(Number(out.meta['移調'] ?? 0)) > 12) err(0, '「移調:」は -12〜12 の間で書きます');
   if (!out.form.length) out.form = out.verses.map((v) => v.name);
   for (const name of out.form) {
     if (!out.intros[name] && !out.verses.some((v) => v.name === name)) err(0, `構成の「${name}」に当たる [${name}] がありません`);
@@ -265,11 +269,12 @@ export function parseScore(text) {
 
 /**
  * 構成の順に、歌の音ごとの時刻を並べる（声に合わせた時刻は T6 で times.txt から入れる）。
- * 返り値：[{ t, dur, midi, text, ruby, verse, line }]。休符も midi: null で入る（線を切るため）。
+ * 返り値：[{ t, dur, midi, text, ruby, verse, line }]。休符も midi: null で入る（線を切るため）。midi は「移調:」を掛けた高さ。
  * 前奏などの伴奏だけの所は、歌の音を出さず、時刻だけ進める。「速さ」は 4 分音符が 1 分に何回か。
  */
 export function timeline(score) {
   const sec = 60 / Number(score.meta['速さ']);
+  const shift = transposeOf(score);
   const events = [];
   let t = 0;
   for (const name of score.form) {
@@ -282,12 +287,18 @@ export function timeline(score) {
       for (const n of ln.notes) {
         const dur = n.beats * sec;
         const syl = n.midi === null ? null : ln.syllables[s++];
-        events.push({ t, dur, midi: n.midi, text: syl?.text ?? null, ruby: syl?.ruby ?? null, verse: vi, line: li });
+        events.push({ t, dur, midi: n.midi === null ? null : n.midi + shift, text: syl?.text ?? null, ruby: syl?.ruby ?? null, verse: vi, line: li });
         t += dur;
       }
     });
   }
   return events;
+}
+
+/** 「移調:」の半音の数（書いていなければ 0） */
+export function transposeOf(score) {
+  const v = Number(score.meta['移調'] ?? 0);
+  return Number.isInteger(v) ? v : 0;
 }
 
 function introBeats(intro) {
@@ -301,6 +312,7 @@ function introBeats(intro) {
  */
 export function accompaniment(score) {
   const sec = 60 / Number(score.meta['速さ']);
+  const shift = transposeOf(score);
   const events = [];
   const dynOf = {};
   let t = 0;
@@ -309,7 +321,7 @@ export function accompaniment(score) {
       let u = t0;
       for (const n of notes) {
         if (n.dyn) dynOf[part] = n.dyn;
-        if (n.midis.length) events.push({ t: u, dur: n.beats * sec, midis: n.midis, vel: DYNAMICS[dynOf[part] || 'mf'], part });
+        if (n.midis.length) events.push({ t: u, dur: n.beats * sec, midis: n.midis.map((m) => m + shift), vel: DYNAMICS[dynOf[part] || 'mf'], part });
         u += n.beats * sec;
       }
     }

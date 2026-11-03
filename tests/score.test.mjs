@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
-import { parseScore, parseNotes, noteToMidi, timeline, accompaniment, barBeats } from '../js/score.js';
+import { parseScore, parseNotes, noteToMidi, timeline, accompaniment, barBeats, transposeOf } from '../js/score.js';
 
 const SAMPLE = `# ためしのうた
 作詞: ためし
@@ -190,6 +190,22 @@ test('伴奏の音を、構成の順に強弱つきで並べる（強弱は次�
 test('構成に、楽譜にない部分の名前があれば知らせる', () => {
   const s = parseScore(WITH_PIANO.replace('構成: 前奏 1番 前奏', '構成: 前奏 1番 2番'));
   assert.ok(s.errors.some((e) => /構成の「2番」/.test(e.message)));
+});
+
+test('「移調:」は、読んだ音はそのままにして、鳴らす高さ（歌と伴奏）だけを動かす', () => {
+  const s = parseScore(WITH_PIANO.replace('構成:', '移調: -2\n構成:'));
+  assert.deepEqual(s.errors, []);
+  assert.equal(transposeOf(s), -2);
+  assert.equal(s.melody[0].notes[0].midi, 64);                 // 楽譜は E4 のまま
+  const plain = timeline(parseScore(WITH_PIANO)), moved = timeline(s);
+  assert.deepEqual(moved.map((e) => e.midi), plain.map((e) => e.midi - 2));
+  const pa = accompaniment(parseScore(WITH_PIANO)), ma = accompaniment(s);
+  assert.deepEqual(ma.map((e) => e.midis), pa.map((e) => e.midis.map((m) => m - 2)));
+});
+
+test('「移調:」が整数でない・大きすぎるときは知らせる', () => {
+  assert.ok(parseScore(WITH_PIANO.replace('構成:', '移調: 下げる\n構成:')).errors.some((e) => /整数/.test(e.message)));
+  assert.ok(parseScore(WITH_PIANO.replace('構成:', '移調: -13\n構成:')).errors.some((e) => /-12〜12/.test(e.message)));
 });
 
 // songs/ に置いた楽譜は、全部、間違いなく読めること
