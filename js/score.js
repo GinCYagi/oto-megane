@@ -2,14 +2,19 @@
 // 画面やブラウザの機能には触れない、字と数だけの関数。node --test で確かめられる。
 //
 // 読んだ結果：
-//   { title, meta, melody: [行…], verses: [{ name, lines: [{ notes, syllables, lineNo }] }], errors: [{ lineNo, message }] }
-//   notes：その行の音（休符を含む）。{ midi, beats }。休符は midi が null。beats は 4 分音符を 1 とした長さ。
-//   syllables：休符を除いた音一つずつに当たる字。{ text, ruby }。ruby は読みが字と違うときだけ入る。
+//   { title, meta, form, melody: [行…], intros: { 前奏: { parts } }, verses: [{ name, lines }], errors: [{ lineNo, message }] }
+//   melody の行：{ notes, parts: { 右手: [音…], 左手: [音…], … }, lineNo }
+//   音：{ midi, midis, beats, dyn }。休符は midi: null・midis: []。和音は midis に全部、midi は一番上の音。
+//       beats は 4 分音符を 1 とした長さ。dyn はその音の前に書いた強弱（なければ null）。
+//   番の行：{ notes, syllables: [{ text, ruby }], lineNo }。ruby は読みが字と違うときだけ入る。
 // 間違いがあっても止めずに読み進め、行の番号を付けて errors に集める（打った人が一度に直せるように）。
 
 const NOTE_BASE = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 const DUR = new Set([1, 2, 4, 8, 16]);
-const META_KEYS = ['作詞', '作曲', '出典', '拍子', '速さ'];
+const META_KEYS = ['作詞', '作曲', '出典', '拍子', '速さ', '構成'];
+const INSTRUMENTAL = new Set(['前奏', '間奏', '後奏']); // 歌のない、伴奏だけの部分
+const PART_RE = /^(右手|左手)\d?$/;                       // 伴奏の声部：右手・右手2・左手・左手2 …
+export const DYNAMICS = { pp: 40, p: 55, mp: 70, mf: 85, f: 100, ff: 115 }; // 強弱 → 鍵盤の強さ（MIDI の velocity）
 export const HOLD = 'ー'; // 一つの字を伸ばして、二つ目からの音に当てる印
 
 /** 「F#4」「Bb4」「C5」を MIDI の番号に（C4 = 60）。読めなければ null。 */
@@ -28,32 +33,73 @@ function durToBeats(text) {
   return m[2] ? beats * 1.5 : beats;
 }
 
+/** 「3/4」→ 1 小節が 4 分音符いくつ分か（3）。「6/8」→ 3。読めなければ null。 */
+export function barBeats(sig) {
+  const m = /^(\d+)\s*\/\s*(\d+)$/.exec(sig || '');
+  return m ? (Number(m[1]) * 4) / Number(m[2]) : null;
+}
+
 /**
- * 「音:」の 1 行を読む。返り値：{ notes, error }。
+ * 音の 1 行を読む。返り値：{ notes, error }。
  * 一つの音：「F4:4」。付点：「G4:4.」。休符：「R:8」。タイ：「F4:4~F4:8」（同じ高さをつないで一つの音）。
+ * 和音：「C4+E4+G4:4」。小節の区切り：「/」（bar を渡すと、どの小節も bar 拍あるかを確かめる）。
+ * 強弱：「mf」などを音の前に一語で。「<」「>」は読み飛ばす。
+ * 小節をまたぐタイ：音の後ろに「~」を付けると、次の音（同じ高さ）とつないで一つの音にする（例「E5:1~ / E5:2」）。
  */
-export function parseNotes(text) {
+export function parseNotes(text, { bar = null, chords = true } = {}) {
   const notes = [];
-  for (const token of text.split(/[\s　]+/).filter(Boolean)) {
-    const parts = token.split('~');
-    let midi;
+  let dyn = null;
+  let inBar = 0;
+  let barNo = 1;
+  const bars = [];
+  let tieOpen = false; // 前の音が「~」で終わり、次の音とつなぐ
+  for (const raw of text.split(/[\s　]+/).filter(Boolean)) {
+    const tieNext = raw.endsWith('~');
+    const token = tieNext ? raw.slice(0, -1) : raw;
+    if (token === '/') { bars.push([barNo, inBar]); barNo++; inBar = 0; continue; }
+    if (token === '<' || token === '>') continue;
+    if (token in DYNAMICS) { dyn = token; continue; }
+    let midis;
     let beats = 0;
-    for (const part of parts) {
+    for (const part of token.split('~')) {
       const m = /^([^:]+):(.+)$/.exec(part);
       if (!m) return { notes, error: `「${token}」が読めません（「F4:4」のように、音名:長さ で書きます）` };
       const b = durToBeats(m[2]);
       if (b === null) return { notes, error: `「${token}」の長さ「${m[2]}」が読めません（1・2・4・8・16、付点は後ろに「.」）` };
-      const isRest = m[1] === 'R';
-      const mm = isRest ? null : noteToMidi(m[1]);
-      if (!isRest && mm === null) return { notes, error: `「${token}」の音名「${m[1]}」が読めません（「C4」「F#4」「Bb4」のように書きます）` };
-      if (midi !== undefined && mm !== midi) return { notes, error: `「${token}」のタイが、違う高さをつないでいます` };
-      midi = mm;
+      let mm = [];
+      if (m[1] !== 'R') {
+        const names = m[1].split('+');
+        if (names.length > 1 && !chords) return { notes, error: `「${token}」：歌の旋律に和音は書けません` };
+        mm = names.map(noteToMidi);
+        const badIdx = mm.indexOf(null);
+        if (badIdx >= 0) return { notes, error: `「${token}」の音名「${names[badIdx]}」が読めません（「C4」「F#4」「Bb4」のように書きます）` };
+        mm.sort((a, b2) => a - b2);
+      }
+      if (midis !== undefined && mm.join() !== midis.join()) return { notes, error: `「${token}」のタイが、違う高さをつないでいます` };
+      midis = mm;
       beats += b;
     }
-    notes.push({ midi, beats });
+    inBar += beats;
+    if (tieOpen) {
+      const prev = notes.at(-1);
+      if (prev.midis.join() !== midis.join()) return { notes, error: `「${token}」：前の音から「~」でつないでいますが、高さが違います` };
+      prev.beats += beats;
+    } else {
+      notes.push({ midi: midis.length ? midis.at(-1) : null, midis, beats, dyn });
+    }
+    dyn = null;
+    tieOpen = tieNext;
+  }
+  if (tieOpen) return { notes, error: '行の最後の音が「~」で終わっています（次の音がありません）' };
+  if (inBar > 0) bars.push([barNo, inBar]);
+  if (bar && bars.length > 1) {
+    const bad = bars.filter(([, b]) => Math.abs(b - bar) > 1e-9);
+    if (bad.length) return { notes, error: bad.map(([n, b]) => `${n} 小節目が ${b} 拍です（${bar} 拍のはず）`).join('、') };
   }
   return { notes, error: null };
 }
+
+const sumBeats = (notes) => notes.reduce((s, n) => s + n.beats, 0);
 
 /** 「詞:」「読:」の 1 行を「|」で区切る。全角の「｜」も受け付ける。 */
 function splitSyllables(text) {
@@ -67,11 +113,13 @@ function keyValue(line) {
 }
 
 export function parseScore(text) {
-  const out = { title: '', meta: {}, melody: [], verses: [], errors: [] };
+  const out = { title: '', meta: {}, form: [], melody: [], intros: {}, verses: [], errors: [] };
   const err = (lineNo, message) => out.errors.push({ lineNo, message });
+  let bar = null;
 
-  let section = null;      // '旋律' か、番の名前
+  let section = null;      // '旋律'・前奏などの名前・番の名前
   let verse = null;
+  let intro = null;        // 前奏など：{ parts, lineNo }
   let pendingNotes = null; // 番の中で、次の「詞:」の旋律を上書きする「音:」
   let pendingNotesLine = 0;
   let pendingWords = null; // 「読:」を待っている「詞:」
@@ -105,22 +153,41 @@ export function parseScore(text) {
     verse.lines.push({ notes, syllables, lineNo: p.lineNo });
   };
 
+  const closeSection = () => {
+    if (verse) flushWords();
+    if (pendingNotes) { err(pendingNotesLine, '上書きの「音:」のあとに「詞:」がありません'); pendingNotes = null; }
+  };
+
+  /** 伴奏の 1 行（右手: 左手2: など）を、いまの行に足す。長さが合うかも確かめる。 */
+  const addPart = (target, key, value, lineNo, expectBeats, where) => {
+    const r = parseNotes(value, { bar });
+    if (r.error) err(lineNo, `${key}：${r.error}`);
+    if (target[key]) err(lineNo, `${where}に「${key}:」が 2 回あります（別の声部は「${key.replace(/\d$/, '')}2:」のように番号を付けます）`);
+    target[key] = r.notes;
+    const got = sumBeats(r.notes);
+    if (!r.error && expectBeats !== null && Math.abs(got - expectBeats) > 1e-9) {
+      err(lineNo, `${key}：長さが ${got} 拍で、${where}の ${expectBeats} 拍と合いません`);
+    }
+  };
+
   const lines = text.split(/\r?\n/);
   lines.forEach((raw, i) => {
     const lineNo = i + 1;
     const line = raw.trim();
-    if (!line) return;
+    if (!line || line.startsWith('//')) return; // 空の行と、「//」で始まるメモの行は読み飛ばす
 
     if (line.startsWith('# ')) { out.title = line.slice(2).trim(); return; }
 
     const sec = /^\[(.+)\]$/.exec(line);
     if (sec) {
-      if (verse) flushWords();
-      if (pendingNotes) { err(pendingNotesLine, '上書きの「音:」のあとに「詞:」がありません'); pendingNotes = null; }
+      closeSection();
       section = sec[1].trim();
-      if (section === '旋律') {
-        verse = null;
-      } else {
+      verse = null;
+      intro = null;
+      if (INSTRUMENTAL.has(section)) {
+        intro = { parts: {}, lineNo };
+        out.intros[section] = intro;
+      } else if (section !== '旋律') {
         if (!out.melody.length) err(lineNo, '[旋律] より前に番があります（[旋律] を先に書きます）');
         verse = { name: section, lines: [] };
         out.verses.push(verse);
@@ -132,23 +199,42 @@ export function parseScore(text) {
     if (!kv) { err(lineNo, `この行が読めません：「${line}」`); return; }
 
     if (section === null) {
-      if (META_KEYS.includes(kv.key)) out.meta[kv.key] = kv.value;
-      else err(lineNo, `「${kv.key}」は知らない項目です（${META_KEYS.join('・')} のどれか）`);
+      if (!META_KEYS.includes(kv.key)) { err(lineNo, `「${kv.key}」は知らない項目です（${META_KEYS.join('・')} のどれか）`); return; }
+      out.meta[kv.key] = kv.value;
+      if (kv.key === '拍子') {
+        bar = barBeats(kv.value);
+        if (bar === null) err(lineNo, `拍子「${kv.value}」が読めません（「4/4」のように書きます）`);
+      }
+      if (kv.key === '構成') out.form = kv.value.split(/[\s　]+/).filter(Boolean);
+      return;
+    }
+
+    if (intro) {
+      if (!PART_RE.test(kv.key)) { err(lineNo, `[${section}] の中には「右手:」「左手:」などの伴奏の行だけを書きます`); return; }
+      const first = Object.values(intro.parts)[0];
+      addPart(intro.parts, kv.key, kv.value, lineNo, first ? sumBeats(first) : null, `[${section}]`);
       return;
     }
 
     if (section === '旋律') {
-      if (kv.key !== '音') { err(lineNo, '[旋律] の中には「音:」の行だけを書きます'); return; }
-      const r = parseNotes(kv.value);
-      if (r.error) err(lineNo, r.error);
-      out.melody.push({ notes: r.notes, lineNo });
+      if (kv.key === '音') {
+        const r = parseNotes(kv.value, { bar, chords: false });
+        if (r.error) err(lineNo, r.error);
+        out.melody.push({ notes: r.notes, parts: {}, lineNo });
+      } else if (PART_RE.test(kv.key)) {
+        const ml = out.melody.at(-1);
+        if (!ml) { err(lineNo, `「${kv.key}:」の前に「音:」がありません（伴奏は、その段の「音:」のすぐ後に書きます）`); return; }
+        addPart(ml.parts, kv.key, kv.value, lineNo, sumBeats(ml.notes), `${out.melody.length} 段目の旋律`);
+      } else {
+        err(lineNo, '[旋律] の中には「音:」と、伴奏の「右手:」「左手:」などの行だけを書きます');
+      }
       return;
     }
 
     // 番の中
     if (kv.key === '音') {
       flushWords();
-      const r = parseNotes(kv.value);
+      const r = parseNotes(kv.value, { bar, chords: false });
       if (r.error) err(lineNo, r.error);
       pendingNotes = r.notes;
       pendingNotesLine = lineNo;
@@ -165,26 +251,33 @@ export function parseScore(text) {
       err(lineNo, `番の中には「音:」「詞:」「読:」の行だけを書きます（「${kv.key}」）`);
     }
   });
-  if (verse) flushWords();
-  if (pendingNotes) err(pendingNotesLine, '上書きの「音:」のあとに「詞:」がありません');
+  closeSection();
 
   if (!out.melody.length) err(0, '[旋律] がありません');
   if (!out.verses.length) err(0, '番（[1番] など）がありません');
   if (!out.meta['速さ'] || !(Number(out.meta['速さ']) > 0)) err(0, '「速さ:」（4 分音符が 1 分に何回か）がありません');
+  if (!out.form.length) out.form = out.verses.map((v) => v.name);
+  for (const name of out.form) {
+    if (!out.intros[name] && !out.verses.some((v) => v.name === name)) err(0, `構成の「${name}」に当たる [${name}] がありません`);
+  }
   return out;
 }
 
 /**
- * 楽譜の速さのまま、音ごとの時刻を並べる（声に合わせた時刻は T6 で times.txt から入れる）。
+ * 構成の順に、歌の音ごとの時刻を並べる（声に合わせた時刻は T6 で times.txt から入れる）。
  * 返り値：[{ t, dur, midi, text, ruby, verse, line }]。休符も midi: null で入る（線を切るため）。
- * 「速さ」は 4 分音符が 1 分に何回か。
+ * 前奏などの伴奏だけの所は、歌の音を出さず、時刻だけ進める。「速さ」は 4 分音符が 1 分に何回か。
  */
 export function timeline(score) {
   const sec = 60 / Number(score.meta['速さ']);
   const events = [];
   let t = 0;
-  score.verses.forEach((v, vi) => {
-    v.lines.forEach((ln, li) => {
+  for (const name of score.form) {
+    const intro = score.intros[name];
+    if (intro) { t += introBeats(intro) * sec; continue; }
+    const vi = score.verses.findIndex((v) => v.name === name);
+    if (vi < 0) continue;
+    score.verses[vi].lines.forEach((ln, li) => {
       let s = 0;
       for (const n of ln.notes) {
         const dur = n.beats * sec;
@@ -193,6 +286,43 @@ export function timeline(score) {
         t += dur;
       }
     });
-  });
+  }
   return events;
+}
+
+function introBeats(intro) {
+  const first = Object.values(intro.parts)[0];
+  return first ? sumBeats(first) : 0;
+}
+
+/**
+ * 構成の順に、伴奏の音を並べる。返り値：[{ t, dur, midis, vel, part }]（休符は入れない）。
+ * 強弱は声部ごとに、書いた所から次の強弱まで続く。何も書いていない所は mf。
+ */
+export function accompaniment(score) {
+  const sec = 60 / Number(score.meta['速さ']);
+  const events = [];
+  const dynOf = {};
+  let t = 0;
+  const lay = (parts, t0) => {
+    for (const [part, notes] of Object.entries(parts)) {
+      let u = t0;
+      for (const n of notes) {
+        if (n.dyn) dynOf[part] = n.dyn;
+        if (n.midis.length) events.push({ t: u, dur: n.beats * sec, midis: n.midis, vel: DYNAMICS[dynOf[part] || 'mf'], part });
+        u += n.beats * sec;
+      }
+    }
+  };
+  for (const name of score.form) {
+    const intro = score.intros[name];
+    if (intro) { lay(intro.parts, t); t += introBeats(intro) * sec; continue; }
+    const v = score.verses.find((x) => x.name === name);
+    if (!v) continue;
+    v.lines.forEach((ln, li) => {
+      lay(score.melody[li]?.parts || {}, t);
+      t += sumBeats(ln.notes) * sec;
+    });
+  }
+  return events.sort((a, b) => a.t - b.t);
 }

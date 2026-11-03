@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
-import { parseScore, parseNotes, noteToMidi, timeline } from '../js/score.js';
+import { parseScore, parseNotes, noteToMidi, timeline, accompaniment, barBeats } from '../js/score.js';
 
 const SAMPLE = `# ためしのうた
 作詞: ためし
@@ -106,6 +106,92 @@ test('楽譜の速さのまま、音ごとの時刻を並べる（速さ 60 な�
   assert.equal(last.verse, 1);
 });
 
+const WITH_PIANO = `# ためしのうた（伴奏つき）
+拍子: 2/4
+速さ: 120
+構成: 前奏 1番 前奏
+
+[前奏]
+右手: mf C5+E5:4 R:4 / G4:2
+左手: C3:2 / C3:2
+
+[旋律]
+音: E4:4 G4:4 / C5:2
+右手: p E4+G4:8 E4+G4:8 R:4 / C5:4 > G4:4
+左手: C3:2 / C3:4 G2:4
+
+[1番]
+詞: は|る|の
+`;
+
+test('拍子から 1 小節の長さ（4 分音符いくつ分か）', () => {
+  assert.equal(barBeats('4/4'), 4);
+  assert.equal(barBeats('3/4'), 3);
+  assert.equal(barBeats('6/8'), 3);
+  assert.equal(barBeats('よんぶんの'), null);
+});
+
+test('和音・強弱・小節の区切りを読む', () => {
+  const { notes, error } = parseNotes('mf C4+G4+E4:4 R:4 / p G3:2', { bar: 2 });
+  assert.equal(error, null);
+  assert.deepEqual(notes[0].midis, [60, 64, 67]);
+  assert.equal(notes[0].midi, 67);   // 一番上の音
+  assert.equal(notes[0].dyn, 'mf');
+  assert.equal(notes[2].dyn, 'p');
+});
+
+test('小節をまたぐタイは一つの音にし、小節の長さはそれぞれで数える', () => {
+  const { notes, error } = parseNotes('E5:2 E5:2~ / E5:2 D5:2', { bar: 4 });
+  assert.equal(error, null);
+  assert.deepEqual(notes.map((n) => n.beats), [2, 4, 2]);
+  assert.match(parseNotes('E5:2~ / D5:2', {}).error, /高さが違います/);
+});
+
+test('長さの合わない小節は、何小節目かを付けて知らせる', () => {
+  const { error } = parseNotes('C4:4 D4:4 / E4:4 / F4:2', { bar: 2 });
+  assert.match(error, /2 小節目が 1 拍です（2 拍のはず）/);
+});
+
+test('歌の旋律に和音は書けない', () => {
+  const s = parseScore(WITH_PIANO.replace('音: E4:4 G4:4', '音: E4+G4:4 G4:4'));
+  assert.ok(s.errors.some((e) => /和音は書けません/.test(e.message)), JSON.stringify(s.errors));
+});
+
+test('伴奏つきの楽譜を、間違いなしで読む', () => {
+  const s = parseScore(WITH_PIANO);
+  assert.deepEqual(s.errors, []);
+  assert.deepEqual(s.form, ['前奏', '1番', '前奏']);
+  assert.deepEqual(Object.keys(s.melody[0].parts), ['右手', '左手']);
+});
+
+test('伴奏の長さが、その段の旋律と合わなければ知らせる', () => {
+  const s = parseScore(WITH_PIANO.replace('左手: C3:2 / C3:4 G2:4', '左手: C3:2 / C3:4'));
+  assert.ok(s.errors.some((e) => /左手/.test(e.message)), JSON.stringify(s.errors));
+});
+
+test('構成の順に、前奏のあいだは歌を出さず時刻だけ進める', () => {
+  const ev = timeline(parseScore(WITH_PIANO));
+  assert.equal(ev[0].t, 2);          // 前奏 2 小節＝4 拍＝2 秒（速さ 120）
+  assert.equal(ev[0].text, 'は');
+  assert.equal(ev.length, 3);
+});
+
+test('伴奏の音を、構成の順に強弱つきで並べる（強弱は次の印まで続く）', () => {
+  const acc = accompaniment(parseScore(WITH_PIANO));
+  assert.equal(acc[0].t, 0);
+  const first = acc.find((e) => e.part === '右手');
+  assert.equal(first.vel, 85);                         // mf
+  const inVerse = acc.filter((e) => e.part === '右手' && e.t >= 2 && e.t < 4);
+  assert.ok(inVerse.every((e) => e.vel === 55), JSON.stringify(inVerse)); // p
+  const last = acc.filter((e) => e.part === '左手').at(-1);
+  assert.equal(last.t, 5);                            // 後の前奏（4 秒から）の 2 小節目
+});
+
+test('構成に、楽譜にない部分の名前があれば知らせる', () => {
+  const s = parseScore(WITH_PIANO.replace('構成: 前奏 1番 前奏', '構成: 前奏 1番 2番'));
+  assert.ok(s.errors.some((e) => /構成の「2番」/.test(e.message)));
+});
+
 // songs/ に置いた楽譜は、全部、間違いなく読めること
 const songsDir = new URL('../songs/', import.meta.url);
 const files = existsSync(songsDir) ? readdirSync(songsDir).filter((f) => f.endsWith('.txt') && !f.endsWith('.times.txt')) : [];
@@ -115,3 +201,11 @@ for (const f of files) {
     assert.deepEqual(s.errors.map((e) => `${e.lineNo} 行目：${e.message}`), []);
   });
 }
+
+test('MIDI に書き出せる（ヘッダーと 2 本のトラック）', async () => {
+  const { scoreToMidi } = await import('../tools/score2midi.mjs');
+  const bytes = scoreToMidi(parseScore(WITH_PIANO));
+  assert.equal(String.fromCharCode(...bytes.slice(0, 4)), 'MThd');
+  const text = Buffer.from(bytes).toString('latin1');
+  assert.equal(text.split('MTrk').length - 1, 2);
+});
