@@ -15,17 +15,36 @@
 
   <main>
     <canvas id="scope" aria-label="音の形。上ほど高い音、太いほど大きい音"></canvas>
-    <p class="legend">上ほど高い音・太いほど大きい音。下の帯は、高さの定まらない音（息・雑音など）の大きさ。縦線が「いま」。</p>
+    <p id="legend" class="legend"></p>
 
     <p id="now-text" class="now-text" aria-live="polite">止まっています</p>
 
     <div class="controls">
       <button id="btn-test" type="button">試しの音</button>
-      <label class="button" for="file-input">音のファイル</label>
-      <input id="file-input" type="file" accept="audio/*">
       <button id="btn-mic" type="button">マイク</button>
       <button id="btn-stop" type="button">止める</button>
     </div>
+
+    <section class="song-panel" aria-labelledby="song-title">
+      <h2 id="song-title">曲を見る</h2>
+      <p class="hint">曲を鳴らしながら、歌声だけの音から高さの線を描きます。歌声だけの音がなければ、大きさと拍だけを見せます。ファイルは、この端末の外へ送りません。</p>
+      <div class="file-row">
+        <label class="button" for="file-song">1. 曲</label>
+        <input id="file-song" class="file-input" type="file" accept="audio/*">
+        <span id="name-song" class="file-name">まだ選んでいません</span>
+      </div>
+      <div class="file-row">
+        <label class="button" for="file-vocal">2. 歌声だけの音（あれば）</label>
+        <input id="file-vocal" class="file-input" type="file" accept="audio/*">
+        <span id="name-vocal" class="file-name">なし</span>
+      </div>
+      <div class="file-row">
+        <label for="vocal-offset">3. 歌声の頭を切る秒</label>
+        <input id="vocal-offset" class="number" type="number" step="0.01" value="0" inputmode="decimal">
+      </div>
+      <button id="btn-play" type="button">曲を鳴らす</button>
+      <p id="song-status" class="song-status"></p>
+    </section>
 
     <section id="mic-panel" class="mic-panel" hidden>
       <div id="mic-state" class="mic-state" data-state="calibrating" aria-live="polite">

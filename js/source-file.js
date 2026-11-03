@@ -59,6 +59,56 @@ export function makeTestBuffer(ctx) {
   return buf;
 }
 
+/**
+ * 曲を鳴らし、歌声だけの音を（聞こえないように）同時に流して、それぞれの analyser に通す。
+ * offsetSec：歌声だけの音の頭を切る秒（録音の立ち上がりの遅れをそろえる）。負なら歌声を遅らせる。
+ * vocalBuffer が null なら、曲だけを鳴らす。止める関数を返す。
+ */
+export function playSong(ctx, songBuffer, vocalBuffer, offsetSec, songAnalyser, vocalAnalyser, onEnded) {
+  const t0 = ctx.currentTime + 0.1; // 二つを同じ時刻に始めるため、少し先に予約する
+  const song = ctx.createBufferSource();
+  song.buffer = songBuffer;
+  song.connect(songAnalyser);
+  songAnalyser.connect(ctx.destination);
+
+  let vocal = null;
+  let mute = null;
+  if (vocalBuffer) {
+    vocal = ctx.createBufferSource();
+    vocal.buffer = vocalBuffer;
+    // 歌声は聞かせない。音量 0 の出口につなぎ、どのブラウザでも analyser が動くようにする
+    mute = ctx.createGain();
+    mute.gain.value = 0;
+    vocal.connect(vocalAnalyser);
+    vocalAnalyser.connect(mute);
+    mute.connect(ctx.destination);
+  }
+
+  const cleanup = () => {
+    for (const n of [song, vocal, songAnalyser, vocalAnalyser, mute]) {
+      try { n?.disconnect(); } catch { /* もう外れている */ }
+    }
+  };
+  song.onended = () => {
+    try { vocal?.stop(); } catch { /* もう止まっている */ }
+    cleanup();
+    onEnded?.();
+  };
+
+  song.start(t0);
+  if (vocal) {
+    if (offsetSec >= 0) vocal.start(t0, offsetSec);
+    else vocal.start(t0 - offsetSec);
+  }
+  return () => {
+    song.onended = null;
+    for (const n of [song, vocal]) {
+      try { n?.stop(); } catch { /* もう止まっている */ }
+    }
+    cleanup();
+  };
+}
+
 /** 音を鳴らしながら analyser に通す。止める関数を返す。 */
 export function playBuffer(ctx, audioBuffer, analyser, onEnded) {
   const src = ctx.createBufferSource();

@@ -1,16 +1,18 @@
-// 画面のつなぎ：音の入口（試しの音・ファイル・マイク）→ 読み取り → 描く。
+// 画面のつなぎ：音の入口（試しの音・マイク・曲）→ 読み取り → 描く。
 
 import { yin, rmsDb, peakAbs, decimate } from './pitch.js';
 import { Scope } from './draw.js';
-import { decodeFile, makeTestBuffer, playBuffer } from './source-file.js';
+import { decodeFile, makeTestBuffer, playBuffer, playSong } from './source-file.js';
+import { OnsetTracker } from './rhythm.js';
+import { LineSmoother } from './smooth.js';
 import { openMic, describeSettings, MicWatch } from './source-mic.js';
 
 const $ = (id) => document.getElementById(id);
 const scope = new Scope($('scope'));
 
 let audioCtx = null;
-let current = null; // { analyser, stop, watch? }
-let buf = null;
+let current = null; // { analyser, stop, watch?, rhythm?, yinOpts? }
+let lastFrame = null;
 let smoothLevel = 0;
 
 /** AudioContext はボタンを押したときに作る・起こす（スマホのブラウザの決まり）。 */
@@ -20,15 +22,21 @@ function getCtx() {
   return audioCtx;
 }
 
-function newAnalyser(ctx) {
+function newAnalyser(ctx, size = 4096) {
   const a = ctx.createAnalyser();
-  a.fftSize = 4096;
+  a.fftSize = size;
   a.smoothingTimeConstant = 0;
-  buf = new Float32Array(a.fftSize);
   return a;
 }
 
 function setNow(text) { $('now-text').textContent = text; }
+
+const LEGEND = {
+  line: '上ほど高い音・太いほど大きい音。下の帯は、高さの定まらない音（息・雑音など）の大きさ。右寄りの動かない灰色の縦線が「いま」。',
+  rhythm: 'この曲は歌声だけの音がないので、高さの線は出しません。上下の広がりが大きさ、右から流れてくる明るい線が拍の立ち上がり。右寄りの動かない灰色の縦線が「いま」。',
+};
+function setLegend(mode) { $('legend').textContent = LEGEND[mode]; }
+setLegend('line');
 
 function stopCurrent() {
   if (current) current.stop();
@@ -38,7 +46,10 @@ function stopCurrent() {
 }
 
 function start(entry, text) {
+  if (!entry.rhythm) entry.smoother = new LineSmoother();
+  entry.buf = new Float32Array(entry.analyser.fftSize);
   current = entry;
+  setLegend(entry.rhythm ? 'rhythm' : 'line');
   setNow(text);
 }
 
@@ -51,24 +62,62 @@ $('btn-test').addEventListener('click', () => {
   start({ analyser, stop }, '試しの音（ドレミの上り下りと、息のような音）を鳴らしています');
 });
 
-// ---- 音のファイル ----
-const fileInput = $('file-input');
-fileInput.addEventListener('click', () => { getCtx(); }); // 選ぶ前に音の処理を起こしておく
-fileInput.addEventListener('change', async () => {
-  const file = fileInput.files?.[0];
-  if (!file) return;
+// ---- 曲を見る（曲＋歌声だけの音）----
+const songInput = $('file-song');
+const vocalInput = $('file-vocal');
+let songFile = null;
+let vocalFile = null;
+for (const input of [songInput, vocalInput]) {
+  input.addEventListener('click', () => { getCtx(); }); // 選ぶ前に音の処理を起こしておく
+}
+songInput.addEventListener('change', () => {
+  songFile = songInput.files?.[0] || null;
+  $('name-song').textContent = songFile ? songFile.name : 'まだ選んでいません';
+});
+vocalInput.addEventListener('change', () => {
+  vocalFile = vocalInput.files?.[0] || null;
+  $('name-vocal').textContent = vocalFile ? vocalFile.name : 'なし';
+});
+
+/** 曲の欄の知らせ：欄の中と、描く枠の下の両方に出す（押した所から見えるように） */
+function songMsg(text) {
+  setNow(text);
+  $('song-status').textContent = text;
+}
+
+$('btn-play').addEventListener('click', async () => {
   stopCurrent();
-  setNow('読み込んでいます…');
+  if (!songFile) { songMsg('先に「1. 曲」を選んでください'); return; }
+  const offset = Number($('vocal-offset').value) || 0;
+  songMsg('読み込んでいます…');
+  const ctx = getCtx();
+  let song, vocal = null;
   try {
-    const ctx = getCtx();
-    const audio = await decodeFile(ctx, file);
-    const analyser = newAnalyser(ctx);
-    const stop = playBuffer(ctx, audio, analyser, stopCurrent);
-    start({ analyser, stop }, `ファイル「${file.name}」を鳴らしています`);
+    song = await decodeFile(ctx, songFile);
   } catch (e) {
-    setNow(`このファイルは読めませんでした（${e.message || e}）`);
-  } finally {
-    fileInput.value = ''; // 同じファイルをもう一度選べるように
+    songMsg(`曲のファイルが読めませんでした（${e.message || e}）`); return;
+  }
+  if (vocalFile) {
+    try {
+      vocal = await decodeFile(ctx, vocalFile);
+    } catch (e) {
+      songMsg(`歌声だけの音のファイルが読めませんでした（${e.message || e}）`); return;
+    }
+  }
+  const songAnalyser = newAnalyser(ctx, 2048);
+  // 歌声だけの音は一人の声なので、窓を短く（約 43 ms）、しきい値を少し緩くして、速い動きにもついていく
+  const vocalAnalyser = vocal ? newAnalyser(ctx, 2048) : null;
+  const stop = playSong(ctx, song, vocal, offset, songAnalyser, vocalAnalyser, stopCurrent);
+  $('song-status').textContent = '鳴らしています（上の枠に描きます）';
+  // 押した所から描く枠まで画面を送る
+  $('scope').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (vocal) {
+    start({ analyser: vocalAnalyser, stop, yinOpts: { threshold: 0.25 } },
+      `「${songFile.name}」を鳴らし、歌声だけの音から線を描いています（歌声の頭を ${offset} 秒切っています）`);
+  } else {
+    start({ analyser: songAnalyser, stop, rhythm: new OnsetTracker(),
+      spec: new Float32Array(songAnalyser.frequencyBinCount) },
+      `「${songFile.name}」を鳴らしています。歌声だけの音がないので、大きさと拍だけを見せます`);
   }
 });
 
@@ -133,12 +182,23 @@ function setMicState(state, reason, level) {
 function frame() {
   const now = performance.now() / 1000;
   if (current && audioCtx) {
+    const buf = current.buf;
     current.analyser.getFloatTimeDomainData(buf);
     const peak = peakAbs(buf);
     const db = rmsDb(buf);
-    const factor = Math.max(1, Math.round(audioCtx.sampleRate / 12000));
-    const r = db > -60 ? yin(decimate(buf, factor), audioCtx.sampleRate / factor) : { hz: null };
-    scope.push(now, r.hz, db);
+    if (current.rhythm) {
+      const dt = lastFrame === null ? 1 / 60 : Math.min(0.1, now - lastFrame);
+      current.analyser.getFloatFrequencyData(current.spec);
+      // 立ち上がりは 8 kHz までを見る（それより上は録音ごとの差が大きい）
+      const maxBin = Math.round(8000 / (audioCtx.sampleRate / current.analyser.fftSize));
+      scope.pushRhythm(now, db, current.rhythm.update(now, current.spec, dt, maxBin));
+    } else {
+      const factor = Math.max(1, Math.round(audioCtx.sampleRate / 12000));
+      const r = db > -60 ? yin(decimate(buf, factor), audioCtx.sampleRate / factor, current.yinOpts) : { hz: null };
+      const dt = lastFrame === null ? 1 / 60 : Math.min(0.1, now - lastFrame);
+      const sm = current.smoother.push(r.hz, db, dt);
+      scope.push(now, sm.hz, sm.db);
+    }
 
     if (current.watch) {
       const s = current.watch.update(now, peak, db);
@@ -148,6 +208,7 @@ function frame() {
       setMicState(s.state, s.reason, smoothLevel);
     }
   }
+  lastFrame = now;
   scope.draw(now);
   requestAnimationFrame(frame);
 }

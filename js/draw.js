@@ -29,6 +29,7 @@ export class Scope {
     this.colors = {
       line: cssVar('--line'),
       band: cssVar('--band'),
+      rhythm: cssVar('--rhythm'),
       grid: cssVar('--grid'),
       now: cssVar('--now'),
     };
@@ -46,8 +47,14 @@ export class Scope {
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
+  /** 高さの線を描くコマ（試しの音・マイク・歌声だけの音がある曲）。 */
   push(t, hz, db) {
     this.frames.push({ t, hz, db });
+  }
+
+  /** 大きさと拍だけを描くコマ（歌声だけの音がない曲）。beat：拍の立ち上がりなら true。 */
+  pushRhythm(t, db, beat) {
+    this.frames.push({ t, hz: null, db, rhythm: true, beat });
   }
 
   /** 高さ（Hz）→ 縦の位置。範囲の外は端に寄せる。 */
@@ -115,6 +122,20 @@ export class Scope {
         ctx.stroke();
       }
 
+      // 歌声だけの音がない曲：真ん中から上下に広がる形＝大きさ、縦の線＝拍
+      if (b.rhythm) {
+        const plotH = h * (1 - BAND);
+        const mid = plotH / 2;
+        const x0 = Math.floor(this.xOf(a.t, now)), x1 = Math.ceil(this.xOf(b.t, now));
+        if (b.db > DB_MIN && dt < JOIN_SEC) {
+          // 面が広くなるので、暗めの色にし、高さも抑える（画面を光らせない）
+          const half = plotH * 0.3 * loud01(b.db);
+          ctx.fillStyle = colors.rhythm;
+          ctx.fillRect(x0, mid - half, Math.max(1, x1 - x0), half * 2);
+        }
+        continue;
+      }
+
       // 高さの定まらない音：下の帯に、大きさだけを柱で
       if (!b.hz && b.db > DB_MIN && dt < JOIN_SEC) {
         const bh = (h - bandTop - 6) * loud01(b.db);
@@ -123,6 +144,13 @@ export class Scope {
         const x0 = Math.floor(this.xOf(a.t, now)), x1 = Math.ceil(this.xOf(b.t, now));
         ctx.fillRect(x0, h - 3 - bh, Math.max(1, x1 - x0), bh);
       }
+    }
+
+    // 拍の線は、面をすべて塗り終えてから描く（次の柱に上から塗られて細く切れないように）
+    const plotH = h * (1 - BAND);
+    ctx.fillStyle = colors.line;
+    for (const f of fr) {
+      if (f.beat) ctx.fillRect(Math.round(this.xOf(f.t, now)) - 2, plotH / 2 - plotH * 0.44, 3, plotH * 0.88);
     }
   }
 }
