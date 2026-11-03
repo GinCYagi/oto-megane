@@ -41,6 +41,8 @@ setLegend('line');
 function stopCurrent() {
   if (current) current.stop();
   current = null;
+  $('song-time').hidden = true;
+  shownTime = '';
   $('mic-panel').hidden = true;
   setNow('止まっています');
 }
@@ -107,15 +109,17 @@ $('btn-play').addEventListener('click', async () => {
   const songAnalyser = newAnalyser(ctx, 2048);
   // 歌声だけの音は一人の声なので、窓を短く（約 43 ms）、しきい値を少し緩くして、速い動きにもついていく
   const vocalAnalyser = vocal ? newAnalyser(ctx, 2048) : null;
-  const stop = playSong(ctx, song, vocal, offset, songAnalyser, vocalAnalyser, stopCurrent);
+  const startAt = Math.min(Math.max(0, Number($('start-at').value) || 0), Math.max(0, song.duration - 1));
+  const { stop, t0 } = playSong(ctx, song, vocal, offset, songAnalyser, vocalAnalyser, stopCurrent, startAt);
   $('song-status').textContent = '鳴らしています（上の枠に描きます）';
   // 押した所から描く枠まで画面を送る
   $('scope').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const clock = { t0, startAt };
   if (vocal) {
-    start({ analyser: vocalAnalyser, stop, yinOpts: { threshold: 0.25 } },
+    start({ analyser: vocalAnalyser, stop, clock, yinOpts: { threshold: 0.25 } },
       `「${songFile.name}」を鳴らし、歌声だけの音から線を描いています（歌声の頭を ${offset} 秒切っています）`);
   } else {
-    start({ analyser: songAnalyser, stop, rhythm: new OnsetTracker(),
+    start({ analyser: songAnalyser, stop, clock, rhythm: new OnsetTracker(),
       spec: new Float32Array(songAnalyser.frequencyBinCount) },
       `「${songFile.name}」を鳴らしています。歌声だけの音がないので、大きさと拍だけを見せます`);
   }
@@ -178,6 +182,19 @@ function setMicState(state, reason, level) {
   $('mic-meter-fill').style.transform = `scaleX(${level.toFixed(3)})`;
 }
 
+/** 曲の時刻を「曲の時刻 0:41.5」の形で出す。0.1 秒が変わったときだけ書き換える。 */
+let shownTime = '';
+function showSongTime(clock) {
+  const sec = Math.max(0, audioCtx.currentTime - clock.t0 + clock.startAt);
+  const m = Math.floor(sec / 60);
+  const text = `曲の時刻 ${m}:${(sec - m * 60).toFixed(1).padStart(4, '0')}`;
+  if (text !== shownTime) {
+    shownTime = text;
+    $('song-time').textContent = text;
+    $('song-time').hidden = false;
+  }
+}
+
 // ---- 毎コマ：読み取って描く ----
 function frame() {
   const now = performance.now() / 1000;
@@ -199,6 +216,8 @@ function frame() {
       const sm = current.smoother.push(r.hz, db, dt);
       scope.push(now, sm.hz, sm.db);
     }
+
+    if (current.clock) showSongTime(current.clock);
 
     if (current.watch) {
       const s = current.watch.update(now, peak, db);

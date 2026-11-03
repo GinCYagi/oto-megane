@@ -64,7 +64,7 @@ export function makeTestBuffer(ctx) {
  * offsetSec：歌声だけの音の頭を切る秒（録音の立ち上がりの遅れをそろえる）。負なら歌声を遅らせる。
  * vocalBuffer が null なら、曲だけを鳴らす。止める関数を返す。
  */
-export function playSong(ctx, songBuffer, vocalBuffer, offsetSec, songAnalyser, vocalAnalyser, onEnded) {
+export function playSong(ctx, songBuffer, vocalBuffer, offsetSec, songAnalyser, vocalAnalyser, onEnded, startSec = 0) {
   const t0 = ctx.currentTime + 0.1; // 二つを同じ時刻に始めるため、少し先に予約する
   const song = ctx.createBufferSource();
   song.buffer = songBuffer;
@@ -95,18 +95,22 @@ export function playSong(ctx, songBuffer, vocalBuffer, offsetSec, songAnalyser, 
     onEnded?.();
   };
 
-  song.start(t0);
+  // startSec：曲のどこから鳴らすか（秒）。歌声は「曲の時刻＋頭を切る秒」の所から鳴らす
+  song.start(t0, startSec);
   if (vocal) {
-    if (offsetSec >= 0) vocal.start(t0, offsetSec);
-    else vocal.start(t0 - offsetSec);
+    const v = startSec + offsetSec;
+    if (v >= 0) vocal.start(t0, v);
+    else vocal.start(t0 - v);
   }
-  return () => {
+  const stop = () => {
     song.onended = null;
     for (const n of [song, vocal]) {
       try { n?.stop(); } catch { /* もう止まっている */ }
     }
     cleanup();
   };
+  // 曲の時刻（秒）を出すために、始めた時刻と位置も返す
+  return { stop, t0, startSec };
 }
 
 /** 音を鳴らしながら analyser に通す。止める関数を返す。 */
