@@ -15,10 +15,10 @@
 
   <main>
     <canvas id="scope" aria-label="音の形。上ほど高い音、太いほど大きい音"></canvas>
+    <p id="song-time" class="song-time" aria-label="曲の時刻（分：秒）" hidden></p>
     <p id="legend" class="legend"></p>
 
     <p id="now-text" class="now-text" aria-live="polite">止まっています</p>
-    <p id="song-time" class="song-time" hidden></p>
 
     <div class="controls">
       <button id="btn-test" type="button">試しの音</button>
@@ -68,6 +68,6 @@
     <p>音のファイルとマイクの音は、この端末の中だけで扱い、外へ送りません。</p>
   </footer>
 
-  <script type="module" src="js/main.js"></script>
+  <script type="module" src="js/main.js?v=3"></script>
 </body>
 </html>

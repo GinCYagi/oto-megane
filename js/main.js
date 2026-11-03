@@ -1,11 +1,12 @@
 // 画面のつなぎ：音の入口（試しの音・マイク・曲）→ 読み取り → 描く。
 
-import { yin, rmsDb, peakAbs, decimate } from './pitch.js';
-import { Scope } from './draw.js';
-import { decodeFile, makeTestBuffer, playBuffer, playSong } from './source-file.js';
-import { OnsetTracker } from './rhythm.js';
-import { LineSmoother } from './smooth.js';
-import { openMic, describeSettings, MicWatch } from './source-mic.js';
+// ?v= は版の番号。push のあとも、ブラウザに残った前の版を使わず新しい版を読ませる（変えたら index.html とそろえて上げる）
+import { yin, rmsDb, peakAbs, decimate } from './pitch.js?v=3';
+import { Scope } from './draw.js?v=3';
+import { decodeFile, makeTestBuffer, playBuffer, playSong } from './source-file.js?v=3';
+import { OnsetTracker } from './rhythm.js?v=3';
+import { LineSmoother } from './smooth.js?v=3';
+import { openMic, describeSettings, MicWatch } from './source-mic.js?v=3';
 
 const $ = (id) => document.getElementById(id);
 const scope = new Scope($('scope'));
@@ -182,12 +183,12 @@ function setMicState(state, reason, level) {
   $('mic-meter-fill').style.transform = `scaleX(${level.toFixed(3)})`;
 }
 
-/** 曲の時刻を「曲の時刻 0:41.5」の形で出す。0.1 秒が変わったときだけ書き換える。 */
+/** 曲の時刻を「00:41」（分：秒）の形で出す。秒が変わったときだけ書き換える。 */
 let shownTime = '';
 function showSongTime(clock) {
   const sec = Math.max(0, audioCtx.currentTime - clock.t0 + clock.startAt);
-  const m = Math.floor(sec / 60);
-  const text = `曲の時刻 ${m}:${(sec - m * 60).toFixed(1).padStart(4, '0')}`;
+  const whole = Math.floor(sec);
+  const text = `${String(Math.floor(whole / 60)).padStart(2, '0')}:${String(whole % 60).padStart(2, '0')}`;
   if (text !== shownTime) {
     shownTime = text;
     $('song-time').textContent = text;
