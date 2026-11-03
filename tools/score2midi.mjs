@@ -4,7 +4,7 @@
 // 楽譜に間違いがあれば、書き出さずに行の番号つきで知らせる。
 
 import { readFileSync, writeFileSync } from 'node:fs';
-import { parseScore, timeline, accompaniment } from '../js/score.js';
+import { parseScore, timeline, accompaniment, sectionClock } from '../js/score.js';
 
 const TPQ = 480; // 4 分音符 1 つの刻み
 
@@ -30,9 +30,46 @@ function track(events) {
 
 const name = (text) => [...Buffer.from(text, 'utf8')];
 
+const beatsOf = (notes) => notes.reduce((a, n) => a + n.beats, 0);
+
+/**
+ * テンポの地図：[{ sec, tick, bpm }]。ふつうの所は一区切り。「だんだん遅く」の所は 8 分の 1 拍ごとに区切り、
+ * 区切りの頭と終わりの秒が、アプリと同じ計算（sectionClock）にぴったり合うように速さを決める。
+ */
+export function tempoMap(score) {
+  const bpm = Number(score.meta['速さ']);
+  const sec = 60 / bpm;
+  const map = [];
+  let t = 0, beat = 0;
+  const push = (b) => { if (!map.length || map.at(-1).bpm !== b) map.push({ sec: t, tick: Math.round(beat * TPQ), bpm: b }); };
+  for (const name of score.form) {
+    const intro = score.intros[name];
+    if (intro && intro.slowTo) {
+      const clock = sectionClock(intro, sec);
+      const L = beatsOf(Object.values(intro.parts)[0] || []);
+      const step = 1 / 8;
+      for (let b = 0; b < L - 1e-9; b += step) {
+        const d = clock(Math.min(b + step, L)) - clock(b);
+        push((Math.min(step, L - b) * 60) / d);
+        t += d; beat += Math.min(step, L - b);
+      }
+      continue;
+    }
+    const L = intro ? beatsOf(Object.values(intro.parts)[0] || []) : (score.verses.find((v) => v.name === name)?.lines || []).reduce((a, ln) => a + beatsOf(ln.notes), 0);
+    push(bpm);
+    t += L * sec; beat += L;
+  }
+  return map;
+}
+
 export function scoreToMidi(score) {
   const bpm = Number(score.meta['速さ']);
-  const toTick = (sec) => Math.round((sec * bpm * TPQ) / 60);
+  const map = tempoMap(score);
+  const toTick = (s) => {
+    let seg = map[0];
+    for (const m of map) if (m.sec <= s + 1e-9) seg = m; else break;
+    return Math.round(seg.tick + ((s - seg.sec) * seg.bpm * TPQ) / 60);
+  };
   const usPerQuarter = Math.round(60000000 / bpm);
   const [num, den] = (score.meta['拍子'] || '4/4').split('/').map(Number);
 
@@ -42,6 +79,10 @@ export function scoreToMidi(score) {
     { tick: 0, order: 0, data: [0xff, 0x58, 4, num, Math.log2(den), 24, 8] },
     { tick: 0, order: 1, data: [0xc0, 73] }, // フルート
   ];
+  for (const m of map.slice(1)) {
+    const us = Math.round(60000000 / m.bpm);
+    melody.push({ tick: m.tick, order: 0, data: [0xff, 0x51, 3, (us >> 16) & 255, (us >> 8) & 255, us & 255] });
+  }
   for (const e of timeline(score)) {
     if (e.midi === null) continue;
     melody.push({ tick: toTick(e.t), order: 3, data: [0x90, e.midi, 96] });

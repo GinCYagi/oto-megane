@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
-import { parseScore, parseNotes, noteToMidi, timeline, accompaniment, barBeats, transposeOf } from '../js/score.js';
+import { parseScore, parseNotes, noteToMidi, timeline, accompaniment, barBeats, transposeOf, sectionClock } from '../js/score.js';
 
 const SAMPLE = `# ためしのうた
 作詞: ためし
@@ -206,6 +206,43 @@ test('「移調:」は、読んだ音はそのままにして、鳴らす高さ�
 test('「移調:」が整数でない・大きすぎるときは知らせる', () => {
   assert.ok(parseScore(WITH_PIANO.replace('構成:', '移調: 下げる\n構成:')).errors.some((e) => /整数/.test(e.message)));
   assert.ok(parseScore(WITH_PIANO.replace('構成:', '移調: -13\n構成:')).errors.some((e) => /-12〜12/.test(e.message)));
+});
+
+const WITH_CODA = WITH_PIANO.replace('構成: 前奏 1番 前奏', '構成: 前奏 1番 後奏') + `
+[後奏]
+だんだん遅く: 70%
+右手: C5:2 / C5:2
+左手: C3:2 / C3:2
+`;
+
+test('「だんだん遅く: 70%」は、部分の頭から終わりへ、速さをまっすぐ 70% まで落とす', () => {
+  const s = parseScore(WITH_CODA);
+  assert.deepEqual(s.errors, []);
+  const clock = sectionClock(s.intros['後奏'], 0.5);      // 速さ 120：1 拍 0.5 秒
+  const L = 4, eps = 1e-6;
+  const v = (b) => eps / (clock(b + eps) - clock(b)) * 0.5; // 元の速さに対する割合
+  assert.ok(Math.abs(v(0) - 1) < 1e-3);
+  assert.ok(Math.abs(v(L - eps) - 0.7) < 1e-3);
+  assert.ok(clock(L) > L * 0.5 && clock(L) < L * 0.5 / 0.7); // 元より長く、ずっと 70% より短い
+  const last = accompaniment(s).filter((e) => e.part === '左手').at(-1);
+  assert.ok(Math.abs(last.t - (4 + clock(2))) < 1e-9);       // 後奏は 4 秒から、2 小節目の頭
+});
+
+test('「だんだん遅く:」は、遅くし始める小節も書ける（3/4 の 3 小節目なら 6 拍目から）', () => {
+  const s = parseScore(WITH_CODA.replace('だんだん遅く: 70%', 'だんだん遅く: 2 小節目から 70%'));
+  assert.deepEqual(s.errors, []);
+  assert.equal(s.intros['後奏'].slowFrom, 2);
+  const clock = sectionClock(s.intros['後奏'], 0.5);
+  assert.equal(clock(2), 1);                                 // 2 拍目までは元の速さ
+  assert.match(parseScore(WITH_CODA.replace('70%', '20%')).errors[0].message, /30〜99%/);
+});
+
+test('MIDI に、後奏のテンポの変化を書き込む（最後は元の 70%）', async () => {
+  const { tempoMap } = await import('../tools/score2midi.mjs');
+  const map = tempoMap(parseScore(WITH_CODA));
+  assert.equal(map[0].bpm, 120);
+  assert.ok(map.length > 10);
+  assert.ok(Math.abs(map.at(-1).bpm - 84) < 2);              // 最後の 8 分の 1 拍の平均
 });
 
 // songs/ に置いた楽譜は、全部、間違いなく読めること

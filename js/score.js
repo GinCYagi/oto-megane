@@ -2,7 +2,7 @@
 // 画面やブラウザの機能には触れない、字と数だけの関数。node --test で確かめられる。
 //
 // 読んだ結果：
-//   { title, meta, form, melody: [行…], intros: { 前奏: { parts } }, verses: [{ name, lines }], errors: [{ lineNo, message }] }
+//   { title, meta, form, melody: [行…], intros: { 前奏: { parts, slowTo, slowFrom } }, verses: [{ name, lines }], errors: [{ lineNo, message }] }
 //   melody の行：{ notes, parts: { 右手: [音…], 左手: [音…], … }, lineNo }
 //   音：{ midi, midis, beats, dyn }。休符は midi: null・midis: []。和音は midis に全部、midi は一番上の音。
 //       beats は 4 分音符を 1 とした長さ。dyn はその音の前に書いた強弱（なければ null）。
@@ -212,6 +212,16 @@ export function parseScore(text) {
     }
 
     if (intro) {
+      if (kv.key === 'だんだん遅く') {
+        const m = kv.value.trim().match(/^(?:(\d+)\s*小節目から[\s　]*)?(\d+)\s*[%％]$/);
+        const pct = m ? Number(m[2]) : NaN;
+        if (!(pct >= 30 && pct < 100)) { err(lineNo, '「だんだん遅く:」は、終わりの速さを元の速さの何 % かで書きます（30〜99%、例：70%、3 小節目から 70%）'); return; }
+        const fromBar = m[1] ? Number(m[1]) : 1;
+        if (fromBar < 1 || (fromBar > 1 && !bar)) { err(lineNo, '「だんだん遅く:」の小節は 1 からで、「拍子:」が要ります'); return; }
+        intro.slowTo = pct / 100;
+        intro.slowFrom = (fromBar - 1) * (bar || 0);
+        return;
+      }
       if (!PART_RE.test(kv.key)) { err(lineNo, `[${section}] の中には「右手:」「左手:」などの伴奏の行だけを書きます`); return; }
       const first = Object.values(intro.parts)[0];
       addPart(intro.parts, kv.key, kv.value, lineNo, first ? sumBeats(first) : null, `[${section}]`);
@@ -279,7 +289,7 @@ export function timeline(score) {
   let t = 0;
   for (const name of score.form) {
     const intro = score.intros[name];
-    if (intro) { t += introBeats(intro) * sec; continue; }
+    if (intro) { t += sectionClock(intro, sec)(introBeats(intro)); continue; }
     const vi = score.verses.findIndex((v) => v.name === name);
     if (vi < 0) continue;
     score.verses[vi].lines.forEach((ln, li) => {
@@ -301,6 +311,20 @@ export function transposeOf(score) {
   return Number.isInteger(v) ? v : 0;
 }
 
+/**
+ * 部分の頭から b 拍目までの秒数を返す関数。「だんだん遅く: 70%」があれば、
+ * 遅くし始める所（slowFrom 拍目、書かなければ頭）から部分の終わりまで、速さを拍に沿ってまっすぐ 70% へ落とす。
+ * 速さ v(x) = v0·(1 − k·x/L)（k = 1 − 70%、L = 遅くする拍数、x = 遅くし始めてからの拍）を積分した形：
+ * 秒 = (L·sec/k)·(−ln(1 − k·x/L))。
+ */
+export function sectionClock(intro, sec) {
+  const from = intro.slowFrom || 0;
+  const L = introBeats(intro) - from;
+  const k = intro.slowTo ? 1 - intro.slowTo : 0;
+  if (!k || L <= 0) return (b) => b * sec;
+  return (b) => (b <= from ? b * sec : from * sec + ((L * sec) / k) * -Math.log(1 - (k * Math.min(b - from, L)) / L));
+}
+
 function introBeats(intro) {
   const first = Object.values(intro.parts)[0];
   return first ? sumBeats(first) : 0;
@@ -316,19 +340,20 @@ export function accompaniment(score) {
   const events = [];
   const dynOf = {};
   let t = 0;
-  const lay = (parts, t0) => {
+  const lay = (parts, t0, clock = (b) => b * sec) => {
     for (const [part, notes] of Object.entries(parts)) {
-      let u = t0;
+      let b = 0;
       for (const n of notes) {
         if (n.dyn) dynOf[part] = n.dyn;
-        if (n.midis.length) events.push({ t: u, dur: n.beats * sec, midis: n.midis.map((m) => m + shift), vel: DYNAMICS[dynOf[part] || 'mf'], part });
-        u += n.beats * sec;
+        const u = t0 + clock(b), end = t0 + clock(b + n.beats);
+        if (n.midis.length) events.push({ t: u, dur: end - u, midis: n.midis.map((m) => m + shift), vel: DYNAMICS[dynOf[part] || 'mf'], part });
+        b += n.beats;
       }
     }
   };
   for (const name of score.form) {
     const intro = score.intros[name];
-    if (intro) { lay(intro.parts, t); t += introBeats(intro) * sec; continue; }
+    if (intro) { const clock = sectionClock(intro, sec); lay(intro.parts, t, clock); t += clock(introBeats(intro)); continue; }
     const v = score.verses.find((x) => x.name === name);
     if (!v) continue;
     v.lines.forEach((ln, li) => {
