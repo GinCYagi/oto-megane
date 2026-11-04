@@ -1,0 +1,38 @@
+/* 歌モード（最初の画面）。テレビに映して離れて見ても読めるよう、字とボタンを大きくする。 */
+:root {
+  --future: #767b83; /* この先の線。地との比 約 4.1:1、過ぎた所の線（--line）との比 約 3.6:1（点検係の計算、3:1 を超える） */
+  --nowline: #b4b7bc; /* 「いま」の縦線。この先の線と溶け合わないよう、それより明るくする */
+}
+
+.list-view { max-width: 900px; margin: 0 auto; padding: 0 16px; }
+.list-view h1 { font-size: 2rem; }
+
+.song-list { list-style: none; padding: 0; margin: 16px 0; display: grid; gap: 14px; }
+.song-button {
+  width: 100%;
+  min-height: 88px;
+  font-size: 1.8rem;
+  justify-content: center;
+}
+.song-button:focus-visible, .play-bar button:focus-visible { outline: 3px solid var(--text); outline-offset: 3px; }
+
+.quiet-link { color: var(--muted); }
+
+/* 線の画面：画面いっぱい。下の 3 割ほどは、歌詞（T3）のために空けておく */
+.play-view {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  padding: 8px 16px 0;
+}
+.play-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* テレビのブラウザで直接開いたときも読めるよう、字は画面の高さに合わせる */
+.play-title { margin: 0; color: var(--muted); font-size: clamp(1rem, 4.5vh, 2rem); font-weight: normal; }
+.play-bar button { min-height: 52px; font-size: clamp(1rem, 4.5vh, 2rem); }
+.uta-line { display: block; width: 100%; flex: 0 0 62%; min-height: 0; margin-top: 8px; }
+.play-status { flex: 1; margin: 8px 0 0; font-size: 2rem; text-align: center; }
+
+/* hidden を display より強くする（一覧の画面に、線の画面が重ならないように） */
+[hidden] { display: none !important; }

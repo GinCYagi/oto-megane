@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>音めがね（実験のページ）</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <h1>音めがね</h1>
+    <p class="lead">音の高さを上下の位置に、大きさを線の太さにして描きます。</p>
+  </header>
+
+  <main>
+    <canvas id="scope" aria-label="音の形。上ほど高い音、太いほど大きい音"></canvas>
+    <p id="song-time" class="song-time" aria-label="曲の時刻（分：秒）" hidden></p>
+    <p id="legend" class="legend"></p>
+
+    <p id="now-text" class="now-text" aria-live="polite">止まっています</p>
+
+    <div class="controls">
+      <button id="btn-test" type="button">試しの音</button>
+      <button id="btn-mic" type="button">マイク</button>
+      <button id="btn-stop" type="button">止める</button>
+    </div>
+
+    <section class="song-panel" aria-labelledby="song-title">
+      <h2 id="song-title">曲を見る</h2>
+      <p class="hint">曲を鳴らしながら、歌声だけの音から高さの線を描きます。歌声だけの音がなければ、大きさと拍だけを見せます。ファイルは、この端末の外へ送りません。</p>
+      <div class="file-row">
+        <label class="button" for="file-song">1. 曲</label>
+        <input id="file-song" class="file-input" type="file" accept="audio/*">
+        <span id="name-song" class="file-name">まだ選んでいません</span>
+      </div>
+      <div class="file-row">
+        <label class="button" for="file-vocal">2. 歌声だけの音（あれば）</label>
+        <input id="file-vocal" class="file-input" type="file" accept="audio/*">
+        <span id="name-vocal" class="file-name">なし</span>
+      </div>
+      <div class="file-row">
+        <label for="vocal-offset">3. 歌声の頭を切る秒</label>
+        <input id="vocal-offset" class="number" type="number" step="0.01" value="0" inputmode="decimal">
+      </div>
+      <div class="file-row">
+        <label for="start-at">4. 曲のどこから鳴らすか（秒）</label>
+        <input id="start-at" class="number" type="number" step="0.1" min="0" value="0" inputmode="decimal">
+      </div>
+      <button id="btn-play" type="button">曲を鳴らす</button>
+      <p id="song-status" class="song-status"></p>
+    </section>
+
+    <section id="mic-panel" class="mic-panel" hidden>
+      <div id="mic-state" class="mic-state" data-state="calibrating" aria-live="polite">
+        <span id="mic-label" class="mic-label"></span>
+        <div class="mic-meter" aria-hidden="true"><div id="mic-meter-fill" class="mic-meter-fill"></div></div>
+        <p id="mic-reason" class="mic-reason"></p>
+      </div>
+      <h2>声のための自動処理（切るように頼んだもの）</h2>
+      <ul id="settings" class="settings"></ul>
+      <p id="settings-extra" class="settings-extra"></p>
+    </section>
+  </main>
+
+  <footer>
+    <p><a href="./">歌の一覧へ戻る</a></p>
+    <p>医療機器ではありません。聞こえを診断・治療・改善するものではありません。</p>
+    <p>音のファイルとマイクの音は、この端末の中だけで扱い、外へ送りません。</p>
+  </footer>
+
+  <script type="module" src="js/main.js?v=4"></script>
+</body>
+</html>
