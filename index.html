@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
   <title>音めがね</title>
-  <link rel="stylesheet" href="css/style.css?v=5">
-  <link rel="stylesheet" href="css/uta.css?v=5">
+  <link rel="stylesheet" href="css/style.css?v=10">
+  <link rel="stylesheet" href="css/uta.css?v=10">
 </head>
 <body class="uta">
   <section id="list-view" class="list-view">
@@ -22,13 +22,14 @@
 
   <section id="play-view" class="play-view" hidden>
     <div class="play-bar">
-      <h2 id="play-title" class="play-title"></h2>
+      <h2 class="play-title"><span id="play-title"></span> <small id="play-note" class="play-note"></small></h2>
       <button id="btn-back" type="button">一覧へ</button>
     </div>
     <canvas id="uta-line" class="uta-line" aria-label="歌の高さの線。右から左へ流れ、上ほど高い音。左から 3 分の 1 の縦線が、いま歌っている所"></canvas>
+    <div id="lyrics" class="lyrics" aria-live="off"></div>
     <p id="play-status" class="play-status" aria-live="polite"></p>
   </section>
 
-  <script type="module" src="js/uta.js?v=5"></script>
+  <script type="module" src="js/uta.js?v=10"></script>
 </body>
 </html>

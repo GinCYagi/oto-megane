@@ -17,7 +17,8 @@ export function songRange(events) {
  * 線を、つながった音のかたまりごとの折れ線にする。休符・時間のすき間で切る。
  * 返り値：[[{ t, midi }, …], …]。音の頭と終わりに点を置き、次の音へは GLIDE_SEC で斜めにつなぐ。
  */
-export function lineRuns(events) {
+export function lineRuns(events, { gap = false } = {}) {
+  if (gap) return gapRuns(events);
   const runs = [];
   let run = null;
   let prev = null;
@@ -31,6 +32,32 @@ export function lineRuns(events) {
       run.push({ t: e.t, midi: e.midi });
     }
     run.push({ t: e.t + e.dur, midi: e.midi });
+    prev = e;
+  }
+  return runs;
+}
+
+/**
+ * 音ごとに切った線（案：すき間）。どの音も、終わりを少し手前で止めて、次の音とのあいだにすき間を空ける。
+ * 同じ高さが続いても、音の数だけ短い線が並ぶ。
+ */
+export const GAP_SEC = 0.09;
+export function gapRuns(events) {
+  // 「ー」（同じ字を伸ばして次の高さへ移る所）は、すき間を空けずに斜めにつなぐ。字と字のあいだだけを切る
+  const runs = [];
+  let prev = null;
+  for (const e of events) {
+    if (e.midi === null) { prev = null; continue; }
+    const g = Math.min(GAP_SEC, e.dur * 0.25);
+    const slur = prev && e.text === 'ー' && Math.abs(prev.t + prev.dur - e.t) < 1e-6;
+    if (slur) {
+      const run = runs[runs.length - 1];
+      const glide = Math.min(GLIDE_SEC, prev.dur / 3, e.dur / 3);
+      run[run.length - 1] = { t: e.t - glide, midi: prev.midi };
+      run.push({ t: e.t, midi: e.midi }, { t: e.t + e.dur - g, midi: e.midi });
+    } else {
+      runs.push([{ t: e.t, midi: e.midi }, { t: e.t + e.dur - g, midi: e.midi }]);
+    }
     prev = e;
   }
   return runs;
@@ -51,10 +78,13 @@ function cssVar(name) {
 }
 
 export class UtaLine {
-  constructor(canvas, events) {
+  /** cut：音の切れ目の見せ方の案。'none'（いまの形）・'gap'（すき間）・'char'（字を音の頭に）・'both'（両方） */
+  constructor(canvas, events, { cut = 'none' } = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
-    this.runs = lineRuns(events);
+    this.cut = cut;
+    this.runs = lineRuns(events, { gap: cut === 'gap' || cut === 'both' });
+    this.heads = events.filter((e) => e.midi !== null && e.text && e.text !== 'ー');
     this.range = songRange(events);
     this.colors = { past: cssVar('--line'), future: cssVar('--future'), now: cssVar('--nowline'), bg: cssVar('--bg') };
   }
@@ -98,6 +128,19 @@ export class UtaLine {
         ctx.stroke();
       }
       ctx.restore();
+    }
+
+    // 案：字を音の頭に。線のすぐ上に、その音で歌う字を置く（線と一緒に流れる。過ぎた所は明るく、この先は暗め）
+    if (this.cut === 'char' || this.cut === 'both') {
+      const fs = Math.max(14, h * 0.075);
+      ctx.font = `${fs}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
+      ctx.textBaseline = 'bottom';
+      for (const e of this.heads) {
+        const x = X(e.t);
+        if (x < -fs || x > w) continue;
+        ctx.fillStyle = x <= nowX ? this.colors.past : this.colors.future;
+        ctx.fillText(e.text, x, Y(e.midi) - lw);
+      }
     }
 
     // 「いま」の縦線（動かない）。太さは音の線に合わせ、上下の端に三角の印を付けて、形でも分かるようにする

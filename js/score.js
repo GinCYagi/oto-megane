@@ -6,14 +6,15 @@
 //   melody の行：{ notes, parts: { 右手: [音…], 左手: [音…], … }, lineNo }
 //   音：{ midi, midis, beats, dyn }。休符は midi: null・midis: []。和音は midis に全部、midi は一番上の音。
 //       beats は 4 分音符を 1 とした長さ。dyn はその音の前に書いた強弱（なければ null）。
-//   番の行：{ notes, syllables: [{ text, ruby }], lineNo }。ruby は読みが字と違うときだけ入る。
+//   番の行：{ notes, syllables: [{ text, ruby }], orig, disp, lineNo }。ruby は読みが字と違うときだけ入る。
+//     orig：「元:」（元の本の表記、音ごと）。disp：「字:」（画面の歌詞。漢字＋ルビ）を区切ったもの [{ text, ruby, read, space }]。
 // 「移調:」（半音いくつ上げ下げするか）は、読んだ音には掛けない（楽譜は元の本の高さのまま）。
 // 鳴らす時刻を並べる timeline・accompaniment で掛ける。
 // 間違いがあっても止めずに読み進め、行の番号を付けて errors に集める（打った人が一度に直せるように）。
 
 const NOTE_BASE = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 const DUR = new Set([1, 2, 4, 8, 16]);
-const META_KEYS = ['作詞', '作曲', '出典', '拍子', '速さ', '構成', '移調'];
+const META_KEYS = ['作詞', '作曲', '出典', '拍子', '速さ', '構成', '移調', '添え書き']; // 添え書き：曲の画面で、曲名のそばに小さく出す
 const INSTRUMENTAL = new Set(['前奏', '間奏', '後奏']); // 歌のない、伴奏だけの部分
 const PART_RE = /^(右手|左手)\d?$/;                       // 伴奏の声部：右手・右手2・左手・左手2 …
 export const DYNAMICS = { pp: 40, p: 55, mp: 70, mf: 85, f: 100, ff: 115 }; // 強弱 → 鍵盤の強さ（MIDI の velocity）
@@ -114,6 +115,29 @@ function keyValue(line) {
   return m ? { key: m[1].trim(), value: m[2].trim() } : null;
 }
 
+const KANJI = /[\u3400-\u9fff\uf900-\ufaff々〆ヶ]/;
+
+/**
+ * 「字:」の行（例：兎(うさぎ)追(お)いし　かの山(やま)）を区切る。漢字の後ろの（）がルビ。
+ * 返り値：{ segs: [{ text, ruby, read, space }], reading, error }。read はその区切りの読み（かな）。
+ * 漢字にルビがなければ error（漢字には一つ残らずルビを付ける決まり）。
+ */
+export function parseDisplay(value) {
+  const segs = [];
+  let error = null;
+  const re = /([\u3400-\u9fff\uf900-\ufaff々〆ヶ]+)[(（]([^)）]+)[)）]|([\s　]+)|(.)/gu;
+  for (const m of value.trim().matchAll(re)) {
+    if (m[1]) segs.push({ text: m[1], ruby: m[2], read: m[2], space: false });
+    else if (m[3]) segs.push({ text: '　', ruby: null, read: '', space: true });
+    else {
+      if (KANJI.test(m[4])) error ??= `「${m[4]}」にルビがありません（漢字の後ろに（よみ）を書きます）`;
+      if ('()（）'.includes(m[4])) error ??= `かっこ「${m[4]}」の前に漢字がありません`;
+      segs.push({ text: m[4], ruby: null, read: m[4], space: false });
+    }
+  }
+  return { segs, reading: segs.map((s) => s.read).join(''), error };
+}
+
 export function parseScore(text) {
   const out = { title: '', meta: {}, form: [], melody: [], intros: {}, verses: [], errors: [] };
   const err = (lineNo, message) => out.errors.push({ lineNo, message });
@@ -126,14 +150,16 @@ export function parseScore(text) {
   let pendingNotesLine = 0;
   let pendingWords = null; // 「読:」を待っている「詞:」
 
+  let pendingOrig = null;  // 次の「詞:」に添える「元:」
   const flushWords = () => {
     if (!pendingWords) return;
     const p = pendingWords;
     pendingWords = null;
-    finishLine(p, null);
+    finishLine(p);
   };
 
-  const finishLine = (p, readings, readLineNo) => {
+  const finishLine = (p) => {
+    const { readings, readLineNo } = p;
     const n = verse.lines.length; // この番の何行目か（0 から）
     const notes = p.notes ?? out.melody[n]?.notes;
     if (!notes) {
@@ -148,16 +174,30 @@ export function parseScore(text) {
     if (readings && readings.length !== p.words.length) {
       err(readLineNo, `${verse.name}の ${n + 1} 行目：読は ${readings.length} 個、詞は ${p.words.length} 個で、数が合いません`);
     }
+    if (p.orig && p.orig.words.length !== p.words.length) {
+      err(p.orig.lineNo, `${verse.name}の ${n + 1} 行目：元は ${p.orig.words.length} 個、詞は ${p.words.length} 個で、数が合いません`);
+    }
+    let disp = null;
+    if (p.disp) {
+      const d = parseDisplay(p.disp.value);
+      if (d.error) err(p.disp.lineNo, `${verse.name}の ${n + 1} 行目の字：${d.error}`);
+      const sung = p.words.filter((w) => w !== HOLD).join('');
+      if (!d.error && d.reading !== sung) {
+        err(p.disp.lineNo, `${verse.name}の ${n + 1} 行目：字の読み「${d.reading}」と、詞「${sung}」が合いません`);
+      }
+      disp = d.segs;
+    }
     const syllables = p.words.map((w, i) => {
       const r = readings?.[i];
       return { text: w, ruby: r && r !== w && w !== HOLD ? r : null };
     });
-    verse.lines.push({ notes, syllables, lineNo: p.lineNo });
+    verse.lines.push({ notes, syllables, orig: p.orig?.words ?? null, disp, lineNo: p.lineNo });
   };
 
   const closeSection = () => {
     if (verse) flushWords();
     if (pendingNotes) { err(pendingNotesLine, '上書きの「音:」のあとに「詞:」がありません'); pendingNotes = null; }
+    if (pendingOrig) { err(pendingOrig.lineNo, '「元:」のあとに「詞:」がありません'); pendingOrig = null; }
   };
 
   /** 伴奏の 1 行（右手: 左手2: など）を、いまの行に足す。長さが合うかも確かめる。 */
@@ -250,17 +290,24 @@ export function parseScore(text) {
       if (r.error) err(lineNo, r.error);
       pendingNotes = r.notes;
       pendingNotesLine = lineNo;
+    } else if (kv.key === '元') {
+      flushWords();
+      if (pendingOrig) err(pendingOrig.lineNo, '「元:」のあとに「詞:」がありません');
+      pendingOrig = { words: splitSyllables(kv.value), lineNo };
     } else if (kv.key === '詞') {
       flushWords();
-      pendingWords = { words: splitSyllables(kv.value), notes: pendingNotes, lineNo };
+      pendingWords = { words: splitSyllables(kv.value), notes: pendingNotes, lineNo, orig: pendingOrig };
       pendingNotes = null;
+      pendingOrig = null;
     } else if (kv.key === '読') {
-      if (!pendingWords) { err(lineNo, '「読:」の前に「詞:」がありません'); return; }
-      const p = pendingWords;
-      pendingWords = null;
-      finishLine(p, splitSyllables(kv.value), lineNo);
+      if (!pendingWords || pendingWords.readings) { err(lineNo, '「読:」の前に「詞:」がありません'); return; }
+      pendingWords.readings = splitSyllables(kv.value);
+      pendingWords.readLineNo = lineNo;
+    } else if (kv.key === '字') {
+      if (!pendingWords || pendingWords.disp) { err(lineNo, '「字:」の前に「詞:」がありません'); return; }
+      pendingWords.disp = { value: kv.value, lineNo };
     } else {
-      err(lineNo, `番の中には「音:」「詞:」「読:」の行だけを書きます（「${kv.key}」）`);
+      err(lineNo, `番の中には「音:」「元:」「詞:」「読:」「字:」の行だけを書きます（「${kv.key}」）`);
     }
   });
   closeSection();

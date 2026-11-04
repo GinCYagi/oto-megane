@@ -1,7 +1,14 @@
 // 歌モード：曲の一覧 → 曲名を押す → 線が流れる。
 // T2：声と伴奏はまだ鳴らさず、楽譜の速さのまま線を流す（太さは一定）。
-import { parseScore, timeline } from './score.js?v=5';
-import { UtaLine } from './uta-line.js?v=5';
+import { parseScore, timeline } from './score.js?v=10';
+import { UtaLine } from './uta-line.js?v=10';
+import { UtaLyrics } from './uta-lyrics.js?v=10';
+
+// 音の切れ目は「両方」（すき間＋字を音の頭に。Gin、2026-11-04）。確かめ用：?cut=none|gap|char で、ほかの案に切り替える。
+// 下の歌詞のいまの字に下線を付ける（U3。Gin、2026-11-04）。確かめ用：?mark=0 で外す
+const params = new URLSearchParams(location.search);
+const CUT = params.get('cut') || 'both';
+const MARK = params.get('mark') !== '0';
 
 const SONGS = ['songs/furusato.txt', 'songs/haru_no_ogawa.txt'];
 
@@ -41,13 +48,15 @@ function start(score) {
   listView.hidden = true;
   playView.hidden = false;
   $('play-title').textContent = score.title;
+  $('play-note').textContent = score.meta['添え書き'] ?? '';
   status.textContent = '';
-  const line = new UtaLine(canvas, events);
+  const line = new UtaLine(canvas, events, { cut: CUT });
   line.fit();
-  current = { line, end: last.t + last.dur, t0: performance.now(), raf: 0 };
+  const lyrics = new UtaLyrics($('lyrics'), events, { markNow: MARK, score });
+  current = { line, lyrics, end: last.t + last.dur, t0: performance.now(), raf: 0 };
   // 確かめ用：?t=秒 で、その時刻の絵で止める（写しを撮るため）
   const at = Number(new URLSearchParams(location.search).get('t'));
-  if (at >= 0 && new URLSearchParams(location.search).has('t')) { line.draw(at); return; }
+  if (at >= 0 && params.has('t')) { line.draw(at); lyrics.update(at); return; }
   tick();
 }
 
@@ -55,6 +64,7 @@ function tick() {
   const c = current;
   const t = (performance.now() - c.t0) / 1000;
   c.line.draw(t);
+  c.lyrics.update(t);
   if (t > c.end + 1) { status.textContent = 'おしまい'; return; }
   c.raf = requestAnimationFrame(tick);
 }
