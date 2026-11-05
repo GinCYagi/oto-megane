@@ -18,39 +18,63 @@
 
 .quiet-link { color: var(--muted); }
 
-/* 線の画面：画面いっぱい。下の 3 割ほどは、歌詞（T3）のために空けておく */
+/* 線の画面：見えている高さ（ブラウザのツールバーを除いた高さ、dvh）いっぱい。下の 4 割ほどが歌詞。
+   dvh を知らない古いブラウザは、vh のまま（前の形）にする */
 .play-view {
   position: fixed;
-  inset: 0;
+  top: 0; left: 0; right: 0;
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--bg);
-  padding: 8px 16px 0;
+  /* 横向きの iPhone の切り欠きを避ける */
+  padding: 8px max(16px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(16px, env(safe-area-inset-left));
 }
 .play-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-/* テレビのブラウザで直接開いたときも読めるよう、字は画面の高さに合わせる */
-.play-title { margin: 0; color: var(--muted); font-size: clamp(1rem, 4.5vh, 2rem); font-weight: normal; }
+/* テレビのブラウザで直接開いたときも読めるよう、字は画面の高さに合わせる。曲名は一行にし、入らなければ末尾を「…」に */
+.play-title {
+  margin: 0; color: var(--muted); font-size: clamp(1rem, 4.5vh, 2rem); font-size: clamp(1rem, 4.5dvh, 2rem); font-weight: normal;
+  min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .play-note { font-size: 0.75em; margin-left: 0.5em; }
-.play-bar button { min-height: 52px; font-size: clamp(1rem, 4.5vh, 2rem); }
+.play-bar button { flex: 0 0 auto; white-space: nowrap; min-height: 52px; font-size: clamp(1rem, 4.5vh, 2rem); font-size: clamp(1rem, 4.5dvh, 2rem); }
 .uta-line { display: block; width: 100%; flex: 0 0 52%; min-height: 0; margin-top: 8px; }
 
-/* 歌詞：いまの行を大きく、次の行を小さく暗めに。行が替わるときは、次の行が上がってくるだけ */
-.lyrics { position: relative; flex: 1; overflow: hidden; }
+/* 歌詞：いまの行を大きく、次の行を小さく暗めに。行が替わるときは、次の行が上がってくるだけ。
+   字の大きさは、歌詞の欄の高さに合わせる（cqh。欄の高さの 1/100）。2 行とルビが欄に収まる大きさにする */
+.lyrics { position: relative; flex: 1; min-height: 0; overflow: hidden; container-type: size; }
 .lyric {
   position: absolute; left: 0; right: 0; margin: 0; text-align: center; white-space: nowrap;
   line-height: 1.25; transform-origin: center top;
   transition: transform 0.6s ease, opacity 0.6s ease, color 0.6s ease;
   font-size: clamp(1.4rem, 9vh, 4.6rem); letter-spacing: 0.08em;
 }
+@supports (height: 1cqh) {
+  .lyric { font-size: clamp(1rem, 27cqh, 4.6rem); }
+}
 .lyric[data-pos="now"]   { transform: translateY(0.35em) scale(1); opacity: 1; color: var(--text); }
 .lyric[data-pos="next"]  { transform: translateY(1.95em) scale(0.62); opacity: 1; color: var(--muted); }
-.lyric[data-pos="past"]  { transform: translateY(-1.2em) scale(0.62); opacity: 0; }
+/* 替わるとき、前の行はすぐ薄れて（0.2 秒）上へ抜ける。上がってくる新しい行と、同じ場所で重ならないように */
+.lyric[data-pos="past"]  { transform: translateY(-2.6em) scale(0.62); opacity: 0; transition: transform 0.6s ease, opacity 0.2s linear; }
 .lyric[data-pos="later"] { transform: translateY(3.2em) scale(0.62); opacity: 0; }
 .lyric rt { font-size: 0.42em; color: var(--muted); letter-spacing: 0; }
 .lyric .gap { display: inline-block; width: 0.6em; }
 /* いまの字に下線（U3。形で示す。色だけに頼らない） */
 .syl.now-char { text-decoration: underline; text-decoration-thickness: 0.08em; text-underline-offset: 0.18em; }
 .play-status { position: absolute; left: 0; right: 0; bottom: 8px; margin: 0; font-size: 2rem; text-align: center; }
+
+/* 縦向き：画面いっぱいに「横にしてください」。線と伴奏は裏で流し続ける */
+.rotate-note { display: none; }
+@media (orientation: portrait) {
+  .rotate-note {
+    position: absolute; inset: 0; z-index: 2;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 32px;
+    background: var(--bg); text-align: center; padding: 24px;
+  }
+  .rotate-note p { margin: 0; font-size: clamp(2rem, 11vw, 4rem); line-height: 1.4; }
+  .rotate-note button { min-height: 52px; font-size: 1.4rem; }
+}
 
 /* hidden を display より強くする（一覧の画面に、線の画面が重ならないように） */
 [hidden] { display: none !important; }

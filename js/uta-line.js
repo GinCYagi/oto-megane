@@ -5,6 +5,25 @@ export const WINDOW_SEC = 8;   // 一度に見える長さ（仕様書 3 章。�
 export const NOW_AT = 1 / 3;   // 「いま」の位置（横幅の割合）
 const PAD_SEMI = 2;            // 音域の上下に足す半音の数
 const GLIDE_SEC = 0.06;        // つながった音と音のあいだを、斜めの短い線でつなぐ長さ
+const BASE_VEL = 85;           // mf。この強さのとき、太さは基準のまま
+
+/**
+ * 歌の音に、楽譜の強弱（伴奏の右手に書いた mp・mf など）を付ける。声を入れる T6 までは、これで線の太さを決める。
+ * acc は accompaniment(score) の返り値。歌の音の頭の時刻に、右手で鳴っている強さを使う。右手がなければ mf。
+ */
+export function withDynamics(events, acc, part = '右手') {
+  const hand = acc.filter((a) => a.part === part);
+  let k = -1;
+  return events.map((e) => {
+    while (k + 1 < hand.length && hand[k + 1].t <= e.t + 1e-6) k++;
+    return { ...e, vel: k >= 0 ? hand[k].vel : BASE_VEL };
+  });
+}
+
+/** 強さを、線の太さの倍率に。差が目で分かるよう 1.5 乗にする（p 約 0.5・mp 約 0.75・mf 1・f 約 1.3） */
+export function widthScale(vel = BASE_VEL) {
+  return Math.min(1.5, Math.max(0.45, (vel / BASE_VEL) ** 1.5));
+}
 
 /** 曲の音域に上下 2 半音ずつ足した幅（休符は数えない） */
 export function songRange(events) {
@@ -25,7 +44,7 @@ export function lineRuns(events, { gap = false } = {}) {
   for (const e of events) {
     if (e.midi === null) { run = null; prev = null; continue; }
     const joined = run && prev && Math.abs(prev.t + prev.dur - e.t) < 1e-6;
-    if (!joined) { run = []; runs.push(run); run.push({ t: e.t, midi: e.midi }); }
+    if (!joined) { run = []; if (e.vel !== undefined) run.vel = e.vel; runs.push(run); run.push({ t: e.t, midi: e.midi }); }
     else {
       const g = Math.min(GLIDE_SEC, prev.dur / 3, e.dur / 3);
       run[run.length - 1] = { t: e.t - g, midi: prev.midi }; // 前の音の終わりを少し手前にして、斜めにつなぐ
@@ -56,7 +75,9 @@ export function gapRuns(events) {
       run[run.length - 1] = { t: e.t - glide, midi: prev.midi };
       run.push({ t: e.t, midi: e.midi }, { t: e.t + e.dur - g, midi: e.midi });
     } else {
-      runs.push([{ t: e.t, midi: e.midi }, { t: e.t + e.dur - g, midi: e.midi }]);
+      const run = [{ t: e.t, midi: e.midi }, { t: e.t + e.dur - g, midi: e.midi }];
+      if (e.vel !== undefined) run.vel = e.vel;
+      runs.push(run);
     }
     prev = e;
   }
@@ -106,7 +127,7 @@ export class UtaLine {
     ctx.fillStyle = this.colors.bg;
     ctx.fillRect(0, 0, w, h);
     const pad = h * 0.08;
-    const lw = Math.max(4, Math.min(w, h) * 0.022); // 太さは一定（声を入れる T6 で、声の大きさにする）
+    const lw = Math.max(5, Math.min(w, h) * 0.024); // 基準の太さ（mf）。音ごとに楽譜の強弱で変える（声を入れる T6 で、声の大きさにする）
     const nowX = Math.round(w * NOW_AT);
     const X = (u) => xOf(u, t) * w;
     const Y = (m) => pad + yOf(m, this.range) * (h - 2 * pad);
@@ -118,11 +139,11 @@ export class UtaLine {
       ctx.rect(x0, 0, x1 - x0, h);
       ctx.clip();
       ctx.strokeStyle = color;
-      ctx.lineWidth = lw;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       for (const run of this.runs) {
         if (X(run[run.length - 1].t) < -lw || X(run[0].t) > w + lw) continue;
+        ctx.lineWidth = Math.max(3, lw * widthScale(run.vel));
         ctx.beginPath();
         run.forEach((p, i) => (i ? ctx.lineTo(X(p.t), Y(p.midi)) : ctx.moveTo(X(p.t), Y(p.midi))));
         ctx.stroke();

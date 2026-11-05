@@ -1,0 +1,16 @@
+{
+  "name": "音めがね",
+  "short_name": "音めがね",
+  "description": "歌の高さを、線の上下で見せます。",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#17191d",
+  "theme_color": "#17191d",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

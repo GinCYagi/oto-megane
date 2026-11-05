@@ -2,11 +2,17 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#17191d">
   <title>音めがね</title>
-  <link rel="stylesheet" href="css/style.css?v=10">
-  <link rel="stylesheet" href="css/uta.css?v=10">
+  <!-- ホーム画面に追加したとき、ブラウザの枠なしで開く（manifest の display: standalone。iPhone は apple-touch-icon を優先する） -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-title" content="音めがね">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <link rel="stylesheet" href="css/style.css?v=14">
+  <link rel="stylesheet" href="css/uta.css?v=14">
 </head>
 <body class="uta">
   <section id="list-view" class="list-view">
@@ -25,11 +31,16 @@
       <h2 class="play-title"><span id="play-title"></span> <small id="play-note" class="play-note"></small></h2>
       <button id="btn-back" type="button">一覧へ</button>
     </div>
-    <canvas id="uta-line" class="uta-line" aria-label="歌の高さの線。右から左へ流れ、上ほど高い音。左から 3 分の 1 の縦線が、いま歌っている所"></canvas>
+    <canvas id="uta-line" class="uta-line" aria-label="歌の高さの線。右から左へ流れ、上ほど高い音。太さは音の大きさで、大きく歌う所ほど太い。線の上の字が、その音で歌う字。左から 3 分の 1 の縦線が、いま歌っている所"></canvas>
     <div id="lyrics" class="lyrics" aria-live="off"></div>
     <p id="play-status" class="play-status" aria-live="polite"></p>
+    <!-- 縦向きのときだけ出す。線と伴奏は止めずに裏で流し続け、横にすればそのまま見られる -->
+    <div class="rotate-note" role="status">
+      <p>スマホを<br>横にしてください</p>
+      <button id="btn-back-portrait" type="button">一覧へ</button>
+    </div>
   </section>
 
-  <script type="module" src="js/uta.js?v=10"></script>
+  <script type="module" src="js/uta.js?v=14"></script>
 </body>
 </html>
