@@ -54,3 +54,30 @@ test('仮の主旋律：休符を除いた歌の音が、強さつきで並ぶ',
   const m = melodyEvents([{ t: 0, dur: 1, midi: 60, vel: 70 }, { t: 1, dur: 1, midi: null }, { t: 2, dur: 1, midi: 62 }]);
   assert.deepEqual(m.map((e) => [e.t, e.midis[0], e.vel, e.part]), [[0, 60, 70, '旋律'], [2, 62, 85, '旋律']]);
 });
+
+test('ふるさとだけ「元の調」があり、移調を 0 にすると全音（2 半音）高く鳴る', () => {
+  const furu = parseScore(readFileSync('songs/furusato.txt', 'utf8'));
+  const haru = parseScore(readFileSync('songs/haru_no_ogawa.txt', 'utf8'));
+  assert.equal(furu.meta['元の調'], 'ト長調');
+  assert.equal(haru.meta['元の調'], undefined);
+  const f = timeline(furu).find((e) => e.midi !== null);
+  const g = timeline({ ...furu, meta: { ...furu.meta, '移調': '0' } }).find((e) => e.midi !== null);
+  assert.equal(g.midi - f.midi, 2);
+  assert.equal(g.midi, 67); // ト長調の歌い出しは G4
+});
+
+test('WAV の書き出し：頭の形と、音の値が 16 ビットに入る', async () => {
+  const { encodeWav } = await import('../js/uta-audio.js');
+  const L = new Float32Array([0, 0.5, -1, 1]);
+  const R = new Float32Array([0, -0.5, 2, -2]); // 範囲の外は端で止める
+  const v = new DataView(encodeWav([L, R], 48000));
+  const str = (o, n) => String.fromCharCode(...Array.from({ length: n }, (_, i) => v.getUint8(o + i)));
+  assert.equal(str(0, 4), 'RIFF');
+  assert.equal(str(8, 4), 'WAVE');
+  assert.equal(v.getUint16(22, true), 2);
+  assert.equal(v.getUint32(24, true), 48000);
+  assert.equal(v.getUint32(40, true), 4 * 2 * 2);
+  assert.equal(v.byteLength, 44 + 16);
+  // 左右を交互に並べる：L0 R0 L1 R1 …
+  assert.deepEqual([0, 1, 2, 3, 4, 5, 6, 7].map((i) => v.getInt16(44 + i * 2, true)), [0, 0, 16383, -16384, -32768, 32767, 32767, -32768]);
+});

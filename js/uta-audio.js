@@ -112,6 +112,21 @@ export class UtaAccompaniment {
     }
   }
 
+  /** 全部の音を一度に予約する（書き出し用。OfflineAudioContext は時計が動かないので、先読みの仕組みは使わない） */
+  scheduleAll(startAt) {
+    this.startAt = startAt;
+    this.started = true;
+    const until = this.ctx.currentTime;
+    this.next = 0;
+    while (this.next < this.events.length) {
+      const e = this.events[this.next++];
+      const at = startAt + e.t;
+      if (at < until) continue;
+      if (e.part === '旋律') this.sing(e.midis[0], at, e.dur, velToGain(e.vel));
+      else for (const m of e.midis) this.note(m, at, e.dur, velToGain(e.vel));
+    }
+  }
+
   /** 止める。予約した音もすぐ消す */
   stop() {
     this.stopped = true;
@@ -121,4 +136,44 @@ export class UtaAccompaniment {
     this.out.gain.setTargetAtTime(0, now, 0.03);
     setTimeout(() => this.out.disconnect(), 300);
   }
+}
+
+// ---- 書き出し（デモ動画の音のため。Gin、2026-11-05）----
+// iPhone の画面収録では、Web Audio の音が細かく途切れて録れた（約 21 ミリ秒ごとに、6 割ほどが無音）。
+// 画面とは別に、同じ楽譜・同じ音色で音だけを作り、動画の編集でつなぐ。
+
+export const EXPORT_HEAD_SEC = 1; // 書き出しの頭の無音。曲の 0 秒は、ファイルの 1 秒目（編集で合わせやすいように）
+
+/**
+ * 音の並びを、OfflineAudioContext で音の形（AudioBuffer）にする。鳴らしている時と同じ UtaAccompaniment を使う。
+ * events：accompaniment(score) と melodyEvents(...) を合わせたもの。
+ */
+export async function renderSong(events, { sampleRate = 48000, OfflineCtx = globalThis.OfflineAudioContext } = {}) {
+  const end = Math.max(0, ...events.map((e) => e.t + e.dur));
+  const length = Math.ceil((EXPORT_HEAD_SEC + end + 1.5) * sampleRate);
+  const ctx = new OfflineCtx({ numberOfChannels: 2, length, sampleRate });
+  new UtaAccompaniment(ctx, events).scheduleAll(EXPORT_HEAD_SEC);
+  return ctx.startRendering();
+}
+
+/** 音の形を 16 ビットの WAV に。channels：Float32Array の配列（左・右） */
+export function encodeWav(channels, sampleRate) {
+  const nch = channels.length;
+  const n = channels[0].length;
+  const buf = new ArrayBuffer(44 + n * nch * 2);
+  const v = new DataView(buf);
+  const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  str(0, 'RIFF'); v.setUint32(4, 36 + n * nch * 2, true); str(8, 'WAVE');
+  str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, nch, true);
+  v.setUint32(24, sampleRate, true); v.setUint32(28, sampleRate * nch * 2, true); v.setUint16(32, nch * 2, true); v.setUint16(34, 16, true);
+  str(36, 'data'); v.setUint32(40, n * nch * 2, true);
+  let o = 44;
+  for (let i = 0; i < n; i++) {
+    for (let c = 0; c < nch; c++) {
+      const s = Math.max(-1, Math.min(1, channels[c][i]));
+      v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+      o += 2;
+    }
+  }
+  return buf;
 }
