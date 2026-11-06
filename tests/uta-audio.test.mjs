@@ -81,3 +81,16 @@ test('WAV の書き出し：頭の形と、音の値が 16 ビットに入る', 
   // 左右を交互に並べる：L0 R0 L1 R1 …
   assert.deepEqual([0, 1, 2, 3, 4, 5, 6, 7].map((i) => v.getInt16(44 + i * 2, true)), [0, 0, 16383, -16384, -32768, 32767, 32767, -32768]);
 });
+
+test('地図の山：休みは 0、強い所ほど高い、曲の長さで区切る', async () => {
+  const { mapProfile } = await import('../js/uta-map.js');
+  const ev = [
+    { t: 0, dur: 2, midi: null },
+    { t: 2, dur: 2, midi: 60, vel: 50 },
+    { t: 4, dur: 2, midi: null },
+    { t: 6, dur: 2, midi: 62, vel: 100 },
+  ];
+  const p = mapProfile(ev, 8, 8);
+  assert.deepEqual([...p].map((v) => Math.round(v * 127)), [0, 0, 50, 50, 0, 0, 100, 100]);
+  assert.equal(mapProfile([], 0, 4).length, 4);
+});

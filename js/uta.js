@@ -1,9 +1,10 @@
 // 歌モード：曲の一覧 → 曲名を押す → 線が流れる。
 // T2b：伴奏を鳴らし、線と歌詞は伴奏の時計に合わせて流す。線の太さは楽譜の強弱（声を入れる T6 までの仮）。
-import { parseScore, timeline, accompaniment, transposeOf } from './score.js?v=19';
-import { UtaLine, withDynamics } from './uta-line.js?v=19';
-import { UtaLyrics } from './uta-lyrics.js?v=19';
-import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=19';
+import { parseScore, timeline, accompaniment, transposeOf } from './score.js?v=20';
+import { UtaLine, withDynamics } from './uta-line.js?v=20';
+import { UtaLyrics } from './uta-lyrics.js?v=20';
+import { UtaMap } from './uta-map.js?v=20';
+import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=20';
 
 // 音の切れ目は「両方」（すき間＋字を音の頭に。Gin、2026-11-04）。確かめ用：?cut=none|gap|char で、ほかの案に切り替える。
 // 下の歌詞のいまの字に下線を付ける（U3。Gin、2026-11-04）。確かめ用：?mark=0 で外す
@@ -197,12 +198,14 @@ function start(score) {
   const line = new UtaLine(canvas, events, { cut: CUT });
   line.fit();
   const lyrics = new UtaLyrics($('lyrics'), events, { markNow: MARK, score });
+  const map = new UtaMap($('uta-map'), events, Math.max(...ends));
+  map.fit();
   const firstSing = events.find((e) => e.midi !== null)?.t ?? 0;
-  current = { line, lyrics, audio: null, end: Math.max(...ends), t0: performance.now() + LEAD_SEC * 1000, raf: 0, howUntil: firstSing - HOW_UNTIL_SEC };
+  current = { line, lyrics, audio: null, end: Math.max(...ends), t0: performance.now() + LEAD_SEC * 1000, map, raf: 0, howUntil: firstSing - HOW_UNTIL_SEC };
   placeHowCard();
   // 確かめ用：?t=秒 で、その時刻の絵で止める（写しを撮るため。音は鳴らさない）
   const at = Number(params.get('t'));
-  if (at >= 0 && params.has('t')) { cue.textContent = ''; line.draw(at); lyrics.update(at); showHow(current, at); return; }
+  if (at >= 0 && params.has('t')) { cue.textContent = ''; line.draw(at); lyrics.update(at); showHow(current, at); map.draw(at); return; }
   // 確かめ用：?from=秒 で、その秒から流す（終わりの所を早く確かめるため）
   const from = Math.max(0, Number(params.get('from')) || 0);
   current.from = from;
@@ -296,6 +299,7 @@ function tick() {
     if (cue.textContent !== msg) cue.textContent = msg;
   }
   c.line.draw(t);
+  c.map.draw(t);
   c.lyrics.update(t);
   if (CLOCK) {
     const txt = t < 0 ? 'まもなく' : `${Math.floor(t)} 秒`;
@@ -331,7 +335,7 @@ playView.addEventListener('click', (e) => {
   togglePause(current);
 });
 // 大きさが変わると、キャンバスは空になる。止まっているときも、最後の時刻で描き直す
-window.addEventListener('resize', () => { if (!current) return; placeHowCard(); current.line.fit(); current.line.draw(current.line.lastT ?? 0); });
+window.addEventListener('resize', () => { if (!current) return; placeHowCard(); current.map.fit(); current.map.draw(current.line.lastT ?? 0); current.line.fit(); current.line.draw(current.line.lastT ?? 0); });
 loadSongs().then(() => {
   // 確かめ用：?song=番号 で、その曲をすぐ開く
   const n = new URLSearchParams(location.search).get('song');

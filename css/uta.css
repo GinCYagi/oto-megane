@@ -44,6 +44,8 @@
 }
 .play-note { font-size: 0.75em; margin-left: 0.5em; }
 .play-bar button { flex: 0 0 auto; white-space: nowrap; min-height: 52px; font-size: clamp(1rem, 4.5vh, 2rem); font-size: clamp(1rem, 4.5dvh, 2rem); }
+/* 地図の帯（T4）：曲名の下の細い帯。曲全体の山と、いまの位置 */
+.uta-map { display: block; width: 100%; flex: 0 0 auto; height: 18px; height: clamp(12px, 4.5dvh, 36px); margin-top: 6px; }
 .uta-line { display: block; width: 100%; flex: 0 0 52%; min-height: 0; margin-top: 8px; }
 
 /* 歌詞：いまの行を大きく、次の行を小さく暗めに。行が替わるときは、次の行が上がってくるだけ。

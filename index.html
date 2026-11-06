@@ -11,8 +11,8 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-title" content="音めがね">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <link rel="stylesheet" href="css/style.css?v=19">
-  <link rel="stylesheet" href="css/uta.css?v=19">
+  <link rel="stylesheet" href="css/style.css?v=20">
+  <link rel="stylesheet" href="css/uta.css?v=20">
 </head>
 <body class="uta">
   <section id="list-view" class="list-view">
@@ -31,6 +31,7 @@
       <h2 class="play-title"><span id="play-title"></span> <small id="play-note" class="play-note"></small></h2>
       <button id="btn-back" type="button">一覧へ</button>
     </div>
+    <canvas id="uta-map" class="uta-map" role="img" aria-label="曲全体の地図。山の高さは歌の大きさ。縦の印がいまの所で、右の端が曲の終わり"></canvas>
     <canvas id="uta-line" class="uta-line" aria-label="歌の高さの線。右から左へ流れ、上ほど高い音。太さは音の大きさで、大きく歌う所ほど太い。線の上の字が、その音で歌う字。左から 3 分の 1 の縦線が、いま歌っている所"></canvas>
     <div id="lyrics" class="lyrics" aria-live="off"></div>
     <p id="play-status" class="play-status" aria-live="polite"></p>
@@ -66,6 +67,6 @@
     </div>
   </section>
 
-  <script type="module" src="js/uta.js?v=19"></script>
+  <script type="module" src="js/uta.js?v=20"></script>
 </body>
 </html>
