@@ -1,9 +1,9 @@
 // 歌モード：曲の一覧 → 曲名を押す → 線が流れる。
 // T2b：伴奏を鳴らし、線と歌詞は伴奏の時計に合わせて流す。線の太さは楽譜の強弱（声を入れる T6 までの仮）。
-import { parseScore, timeline, accompaniment, transposeOf } from './score.js?v=17';
-import { UtaLine, withDynamics } from './uta-line.js?v=17';
-import { UtaLyrics } from './uta-lyrics.js?v=17';
-import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=17';
+import { parseScore, timeline, accompaniment, transposeOf } from './score.js?v=18';
+import { UtaLine, withDynamics } from './uta-line.js?v=18';
+import { UtaLyrics } from './uta-lyrics.js?v=18';
+import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=18';
 
 // 音の切れ目は「両方」（すき間＋字を音の頭に。Gin、2026-11-04）。確かめ用：?cut=none|gap|char で、ほかの案に切り替える。
 // 下の歌詞のいまの字に下線を付ける（U3。Gin、2026-11-04）。確かめ用：?mark=0 で外す
@@ -34,10 +34,31 @@ const playView = $('play-view');
 const canvas = $('uta-line');
 const status = $('play-status');
 const clock = $('song-clock');
+const cue = $('play-cue');
 
 let current = null; // { line, lyrics, audio, end, t0, raf }
 let audioCtx = null;
-const LEAD_SEC = 0.5; // 押してから鳴り始めるまで（音の予約が間に合うように。「まもなく始まります」の 3 秒は T5 で）
+// 押してから鳴り始めるまで。「まもなく始まります」と出して約 3 秒待つ（4 章の手順 2。T5）。?lead=秒 で短くできる（確かめ用）
+const LEAD_SEC = params.has('lead') ? Math.max(0.5, Number(params.get('lead')) || 0.5) : 3;
+const END_BACK_SEC = 4; // 「おしまい」のあと、一覧に戻るまで
+let wakeLock = null; // 曲の画面のあいだ、画面が暗くならないように（Screen Wake Lock API）
+
+/** 画面を暗くしない。使えない端末・HTTPS でないページでは何もしない（README に、画面の消える時間を延ばす手順を書く） */
+async function keepAwake() {
+  if (!('wakeLock' in navigator) || wakeLock) return;
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', () => { wakeLock = null; });
+  } catch { wakeLock = null; }
+}
+function letSleep() {
+  wakeLock?.release().catch(() => {});
+  wakeLock = null;
+}
+// ほかのアプリへ移ると、画面を暗くしない約束は自動で外れる。曲の画面に戻ったら、もう一度頼む
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && current && !current.done) keepAwake();
+});
 
 /**
  * 伴奏の音の部品。曲名を押すたびに、前のものを閉じて新しく作る（一曲を最後まで流したあと、iPhone では
@@ -167,6 +188,7 @@ function start(score) {
   $('play-title').textContent = score.title;
   $('play-note').textContent = [score.meta['添え書き'], score.keyNote].filter(Boolean).join('　');
   status.textContent = '';
+  cue.textContent = 'まもなく始まります';
   clock.hidden = !CLOCK;
   clock.textContent = CLOCK ? 'まもなく' : '';
   const line = new UtaLine(canvas, events, { cut: CUT });
@@ -175,7 +197,7 @@ function start(score) {
   current = { line, lyrics, audio: null, end: Math.max(...ends), t0: performance.now() + LEAD_SEC * 1000, raf: 0 };
   // 確かめ用：?t=秒 で、その時刻の絵で止める（写しを撮るため。音は鳴らさない）
   const at = Number(params.get('t'));
-  if (at >= 0 && params.has('t')) { line.draw(at); lyrics.update(at); return; }
+  if (at >= 0 && params.has('t')) { cue.textContent = ''; line.draw(at); lyrics.update(at); return; }
   // 確かめ用：?from=秒 で、その秒から流す（終わりの所を早く確かめるため）
   const from = Math.max(0, Number(params.get('from')) || 0);
   current.from = from;
@@ -192,13 +214,38 @@ function start(score) {
     status.textContent = 'この端末では伴奏を鳴らせません（線と歌詞だけ流します）';
   }
   current.t0 -= from * 1000;
+  keepAwake();
   tick();
+}
+
+/** 画面に触ると止まる。もう一度触ると、続きから（4 章の手順 3） */
+function togglePause(c) {
+  if (c.done) return;
+  const now = performance.now();
+  if (!c.paused) {
+    if (c.audio && !c.audio.started) return; // 鳴り始める前は止めない
+    c.paused = true;
+    c.pausedT = c.audio ? c.audio.songTime() : (now - c.t0) / 1000;
+    c.audio?.ctx.suspend().catch(() => {});
+    cue.textContent = 'とまっています（触ると続き）';
+    return;
+  }
+  c.paused = false;
+  cue.textContent = '';
+  if (c.audio) {
+    // 触った瞬間に起こす（iPhone は触った処理の中でないと鳴らせない）。起きなければ、見張りが伴奏なしに切り替える
+    c.lastMove = now;
+    c.lastCt = undefined;
+    c.audio.ctx.resume().catch(() => giveUp(c));
+  } else {
+    c.t0 = now - c.pausedT * 1000;
+  }
 }
 
 /** 伴奏が始まらないとき：伴奏なしで、線と歌詞をいまの所から流し続け、どうすればよいかを出す */
 function giveUp(c) {
   if (current !== c || !c.audio) return;
-  const t = c.audio.started ? c.audio.songTime() : c.from - LEAD_SEC;
+  const t = c.paused ? c.pausedT : c.audio.started ? c.audio.songTime() : c.from - LEAD_SEC;
   c.audio.stop();
   c.audio = null;
   c.t0 = performance.now() - t * 1000;
@@ -209,7 +256,7 @@ function giveUp(c) {
 function tick() {
   const c = current;
   // 見張り：鳴らし始めたのに、音の時計が WATCH_SEC のあいだ進まなければ、伴奏なしに切り替える
-  if (c.audio?.started) {
+  if (c.audio?.started && !c.paused) {
     const now = performance.now();
     const ct = c.audio.ctx.currentTime;
     if (c.lastCt !== ct) { c.lastCt = ct; c.lastMove = now; }
@@ -217,30 +264,50 @@ function tick() {
   }
   if (DEBUG && c.audio) {
     const x = c.audio.ctx;
-    status.textContent = `音の仕組み：${x.state}　時計：${x.currentTime.toFixed(1)} 秒　${x.sampleRate} Hz　遅れ ${((x.baseLatency || 0) * 1000).toFixed(1)}+${((x.outputLatency || 0) * 1000).toFixed(1)} ms　${LAT}${SESSION ? '' : '　session=0'}`;
+    status.textContent = `画面：${wakeLock ? '暗くしない' : 'ふつう'}　音の仕組み：${x.state}　時計：${x.currentTime.toFixed(1)} 秒　${x.sampleRate} Hz　遅れ ${((x.baseLatency || 0) * 1000).toFixed(1)}+${((x.outputLatency || 0) * 1000).toFixed(1)} ms　${LAT}${SESSION ? '' : '　session=0'}`;
   }
   // 伴奏が鳴っていれば、伴奏の時計に合わせる（画面の時計とずれないように）
   // 伴奏が起きるのを待つあいだは、頭の少し前で止めておく
-  const t = c.audio ? (c.audio.started ? c.audio.songTime() : c.from - LEAD_SEC) : (performance.now() - c.t0) / 1000;
+  const t = c.paused ? c.pausedT
+    : c.audio ? (c.audio.started ? c.audio.songTime() : c.from - LEAD_SEC) : (performance.now() - c.t0) / 1000;
+  if (!c.paused) {
+    const msg = t < 0 ? 'まもなく始まります' : '';
+    if (cue.textContent !== msg) cue.textContent = msg;
+  }
   c.line.draw(t);
   c.lyrics.update(t);
   if (CLOCK) {
     const txt = t < 0 ? 'まもなく' : `${Math.floor(t)} 秒`;
     if (clock.textContent !== txt) clock.textContent = txt;
   }
-  if (t > c.end + 1) { status.textContent = 'おしまい'; c.audio?.stop(); return; }
+  if (t > c.end + 1) {
+    // おしまい：数秒たつと、一覧に戻る（4 章の手順 4）
+    c.done = true;
+    cue.textContent = 'おしまい';
+    c.audio?.stop();
+    letSleep();
+    setTimeout(() => { if (current === c) back(); }, END_BACK_SEC * 1000);
+    return;
+  }
   c.raf = requestAnimationFrame(tick);
 }
 
 function back() {
   if (current) { cancelAnimationFrame(current.raf); current.audio?.stop(); }
   current = null;
+  cue.textContent = '';
+  letSleep();
   playView.hidden = true;
   listView.hidden = false;
 }
 
 $('btn-back').addEventListener('click', back);
 $('btn-back-portrait').addEventListener('click', back);
+// 曲の画面のどこかに触ると、止める／続ける（ボタンと、縦向きの案内の上は除く）
+playView.addEventListener('click', (e) => {
+  if (!current || e.target.closest('button, .rotate-note')) return;
+  togglePause(current);
+});
 // 大きさが変わると、キャンバスは空になる。止まっているときも、最後の時刻で描き直す
 window.addEventListener('resize', () => { if (!current) return; current.line.fit(); current.line.draw(current.line.lastT ?? 0); });
 loadSongs().then(() => {

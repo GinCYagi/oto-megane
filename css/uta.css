@@ -67,7 +67,12 @@
 .lyric .gap { display: inline-block; width: 0.6em; }
 /* いまの字に下線（U3。形で示す。色だけに頼らない） */
 .syl.now-char { text-decoration: underline; text-decoration-thickness: 0.08em; text-underline-offset: 0.18em; }
-.play-status { position: absolute; left: 0; right: 0; bottom: 8px; margin: 0; font-size: 2rem; text-align: center; }
+/* 困ったときの知らせ（伴奏が始まらない など）と ?debug=1。歌詞と重なっても読めるよう、地の色の帯にして小さめに */
+.play-status { position: absolute; left: 0; right: 0; bottom: max(8px, env(safe-area-inset-bottom)); margin: 0 16px; font-size: 1.2rem; text-align: center; background: var(--bg); }
+.play-status:empty { display: none; }
+/* 流れの知らせ（T5）。線の段の真ん中に、地の色の札で。字が出るだけで、光らせない */
+.play-cue { position: absolute; left: 50%; top: 30%; transform: translate(-50%, -50%); margin: 0; padding: 0.3em 0.9em; max-width: 90%; white-space: nowrap; text-align: center; font-size: clamp(1.3rem, 7vh, 2.6rem); font-size: clamp(1.3rem, 7dvh, 2.6rem); background: var(--bg); border: 2px solid var(--muted); border-radius: 12px; pointer-events: none; }
+.play-cue:empty { display: none; }
 /* 曲の時計（?clock=1・?export=1 のときだけ）。動画と WAV の頭を合わせる目印。字が変わるだけで、光らせない */
 .song-clock { position: absolute; left: 0; right: 0; top: max(14px, env(safe-area-inset-top)); text-align: center; pointer-events: none; margin: 0; font-size: 1.4rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 
