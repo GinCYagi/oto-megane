@@ -73,6 +73,21 @@
 /* 流れの知らせ（T5）。線の段の真ん中に、地の色の札で。字が出るだけで、光らせない */
 .play-cue { position: absolute; left: 50%; top: 30%; transform: translate(-50%, -50%); margin: 0; padding: 0.3em 0.9em; max-width: 90%; white-space: nowrap; text-align: center; font-size: clamp(1.3rem, 7vh, 2.6rem); font-size: clamp(1.3rem, 7dvh, 2.6rem); background: var(--bg); border: 2px solid var(--muted); border-radius: 12px; pointer-events: none; }
 .play-cue:empty { display: none; }
+/* 見方の一枚（T10）。線の段に重ねる（前奏のあいだは線が出ないので、隠すものはない）。位置と高さは JS で線の段に合わせる */
+.how-card { position: absolute; left: max(16px, env(safe-area-inset-left)); right: max(16px, env(safe-area-inset-right)); display: flex; flex-direction: column; justify-content: center; gap: 0.4em; padding: 0.4em 0.8em; background: var(--bg); border: 2px solid var(--muted); border-radius: 12px; pointer-events: none; font-size: clamp(1rem, 5.2vh, 2.8rem); font-size: clamp(1rem, 5.2dvh, 2.8rem); }
+.how-card[hidden] { display: none; }
+.how-wait { margin: 0; text-align: center; font-size: 1.2em; }
+.how-wait[hidden] { display: none; }
+.how-rows { display: flex; gap: 1.2em; justify-content: center; }
+.how-row { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 0.2em; max-width: 22em; }
+.how-row p { margin: 0; line-height: 1.6; text-align: center; }
+.how-row rt { font-size: 0.45em; color: var(--muted); }
+.how-pic { width: 100%; max-width: 9em; height: auto; }
+.how-pic line { stroke: var(--line); stroke-linecap: round; }
+.how-pic .how-thin { stroke-width: 3; }
+.how-pic .how-thick { stroke-width: 12; }
+.how-pic .how-mid { stroke-width: 6; }
+.how-pic text { fill: var(--text); font-size: 14px; text-anchor: middle; }
 /* 曲の時計（?clock=1・?export=1 のときだけ）。動画と WAV の頭を合わせる目印。字が変わるだけで、光らせない */
 .song-clock { position: absolute; left: 0; right: 0; top: max(14px, env(safe-area-inset-top)); text-align: center; pointer-events: none; margin: 0; font-size: 1.4rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 

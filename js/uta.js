@@ -1,9 +1,9 @@
 // 歌モード：曲の一覧 → 曲名を押す → 線が流れる。
 // T2b：伴奏を鳴らし、線と歌詞は伴奏の時計に合わせて流す。線の太さは楽譜の強弱（声を入れる T6 までの仮）。
-import { parseScore, timeline, accompaniment, transposeOf } from './score.js?v=18';
-import { UtaLine, withDynamics } from './uta-line.js?v=18';
-import { UtaLyrics } from './uta-lyrics.js?v=18';
-import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=18';
+import { parseScore, timeline, accompaniment, transposeOf } from './score.js?v=19';
+import { UtaLine, withDynamics } from './uta-line.js?v=19';
+import { UtaLyrics } from './uta-lyrics.js?v=19';
+import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=19';
 
 // 音の切れ目は「両方」（すき間＋字を音の頭に。Gin、2026-11-04）。確かめ用：?cut=none|gap|char で、ほかの案に切り替える。
 // 下の歌詞のいまの字に下線を付ける（U3。Gin、2026-11-04）。確かめ用：?mark=0 で外す
@@ -35,6 +35,9 @@ const canvas = $('uta-line');
 const status = $('play-status');
 const clock = $('song-clock');
 const cue = $('play-cue');
+const howCard = $('how-card');
+const howWait = $('how-wait');
+const HOW_UNTIL_SEC = 1; // 見方の一枚は、最初の歌の音のこの秒数前に消す
 
 let current = null; // { line, lyrics, audio, end, t0, raf }
 let audioCtx = null;
@@ -194,10 +197,12 @@ function start(score) {
   const line = new UtaLine(canvas, events, { cut: CUT });
   line.fit();
   const lyrics = new UtaLyrics($('lyrics'), events, { markNow: MARK, score });
-  current = { line, lyrics, audio: null, end: Math.max(...ends), t0: performance.now() + LEAD_SEC * 1000, raf: 0 };
+  const firstSing = events.find((e) => e.midi !== null)?.t ?? 0;
+  current = { line, lyrics, audio: null, end: Math.max(...ends), t0: performance.now() + LEAD_SEC * 1000, raf: 0, howUntil: firstSing - HOW_UNTIL_SEC };
+  placeHowCard();
   // 確かめ用：?t=秒 で、その時刻の絵で止める（写しを撮るため。音は鳴らさない）
   const at = Number(params.get('t'));
-  if (at >= 0 && params.has('t')) { cue.textContent = ''; line.draw(at); lyrics.update(at); return; }
+  if (at >= 0 && params.has('t')) { cue.textContent = ''; line.draw(at); lyrics.update(at); showHow(current, at); return; }
   // 確かめ用：?from=秒 で、その秒から流す（終わりの所を早く確かめるため）
   const from = Math.max(0, Number(params.get('from')) || 0);
   current.from = from;
@@ -216,6 +221,21 @@ function start(score) {
   current.t0 -= from * 1000;
   keepAwake();
   tick();
+}
+
+/** 見方の一枚を、線の段にぴったり重ねる */
+function placeHowCard() {
+  howCard.style.top = `${canvas.offsetTop}px`;
+  howCard.style.height = `${canvas.offsetHeight}px`;
+}
+
+/** 見方の一枚：前奏が終わる（歌が始まる約 1 秒前）まで出す。止めているあいだは「とまっています」を見せるため隠す */
+function showHow(c, t) {
+  const show = !c.paused && !c.done && t < c.howUntil;
+  if (howCard.hidden === show) howCard.hidden = !show;
+  const wait = t < 0;
+  if (howWait.hidden === wait) howWait.hidden = !wait;
+  return show;
 }
 
 /** 画面に触ると止まる。もう一度触ると、続きから（4 章の手順 3） */
@@ -270,8 +290,9 @@ function tick() {
   // 伴奏が起きるのを待つあいだは、頭の少し前で止めておく
   const t = c.paused ? c.pausedT
     : c.audio ? (c.audio.started ? c.audio.songTime() : c.from - LEAD_SEC) : (performance.now() - c.t0) / 1000;
+  const how = showHow(c, t);
   if (!c.paused) {
-    const msg = t < 0 ? 'まもなく始まります' : '';
+    const msg = t < 0 && !how ? 'まもなく始まります' : ''; // 一枚を出しているときは、一枚の中に出す
     if (cue.textContent !== msg) cue.textContent = msg;
   }
   c.line.draw(t);
@@ -296,6 +317,7 @@ function back() {
   if (current) { cancelAnimationFrame(current.raf); current.audio?.stop(); }
   current = null;
   cue.textContent = '';
+  howCard.hidden = true;
   letSleep();
   playView.hidden = true;
   listView.hidden = false;
@@ -309,7 +331,7 @@ playView.addEventListener('click', (e) => {
   togglePause(current);
 });
 // 大きさが変わると、キャンバスは空になる。止まっているときも、最後の時刻で描き直す
-window.addEventListener('resize', () => { if (!current) return; current.line.fit(); current.line.draw(current.line.lastT ?? 0); });
+window.addEventListener('resize', () => { if (!current) return; placeHowCard(); current.line.fit(); current.line.draw(current.line.lastT ?? 0); });
 loadSongs().then(() => {
   // 確かめ用：?song=番号 で、その曲をすぐ開く
   const n = new URLSearchParams(location.search).get('song');
