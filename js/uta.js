@@ -1,10 +1,10 @@
 // 歌モード：曲の一覧 → 曲名を押す → 線が流れる。
 // T2b：伴奏を鳴らし、線と歌詞は伴奏の時計に合わせて流す。線の太さは楽譜の強弱（声を入れる T6 までの仮）。
-import { parseScore, timeline, accompaniment, transposeOf } from './score.js?v=20';
-import { UtaLine, withDynamics } from './uta-line.js?v=20';
-import { UtaLyrics } from './uta-lyrics.js?v=20';
-import { UtaMap } from './uta-map.js?v=20';
-import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=20';
+import { parseScore, timeline, accompaniment, transposeOf } from './score.js?v=21';
+import { UtaLine, withDynamics } from './uta-line.js?v=21';
+import { UtaLyrics } from './uta-lyrics.js?v=21';
+import { UtaMap } from './uta-map.js?v=21';
+import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=21';
 
 // 音の切れ目は「両方」（すき間＋字を音の頭に。Gin、2026-11-04）。確かめ用：?cut=none|gap|char で、ほかの案に切り替える。
 // 下の歌詞のいまの字に下線を付ける（U3。Gin、2026-11-04）。確かめ用：?mark=0 で外す
@@ -46,6 +46,28 @@ let audioCtx = null;
 const LEAD_SEC = params.has('lead') ? Math.max(0.5, Number(params.get('lead')) || 0.5) : 3;
 const END_BACK_SEC = 4; // 「おしまい」のあと、一覧に戻るまで
 let wakeLock = null; // 曲の画面のあいだ、画面が暗くならないように（Screen Wake Lock API）
+
+/**
+ * 曲名を押したら全画面にする（ブラウザのアドレス欄が出たり消えたりして、録画で画面の位置がそろわなかったため。Gin、2026-11-06）。
+ * 押した処理の中で呼ぶ。全画面にできない端末（iPhone の Safari など）では何もしない
+ */
+function enterFullscreen() {
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (!req || document.fullscreenElement || document.webkitFullscreenElement) return;
+  try {
+    const p = req.call(el, { navigationUI: 'hide' });
+    if (p && p.catch) p.catch(() => {});
+  } catch { /* できなければ今のまま */ }
+}
+function exitFullscreen() {
+  if (!(document.fullscreenElement || document.webkitFullscreenElement)) return;
+  const exit = document.exitFullscreen || document.webkitExitFullscreen;
+  try {
+    const p = exit?.call(document);
+    if (p && p.catch) p.catch(() => {});
+  } catch { /* 抜けられなくても一覧は出す */ }
+}
 
 /** 画面を暗くしない。使えない端末・HTTPS でないページでは何もしない（README に、画面の消える時間を延ばす手順を書く） */
 async function keepAwake() {
@@ -184,6 +206,7 @@ function originalKey(score) {
 }
 
 function start(score) {
+  enterFullscreen();
   const acc = accompaniment(score);
   const events = withDynamics(timeline(score), acc);
   const ends = [...events, ...acc].map((e) => e.t + e.dur);
@@ -322,6 +345,7 @@ function back() {
   current = null;
   cue.textContent = '';
   howCard.hidden = true;
+  exitFullscreen();
   letSleep();
   playView.hidden = true;
   listView.hidden = false;
