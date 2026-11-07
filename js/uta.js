@@ -1,10 +1,10 @@
 // 歌モード：曲の一覧 → 曲名を押す → 線が流れる。
 // T2b：伴奏を鳴らし、線と歌詞は伴奏の時計に合わせて流す。線の太さは楽譜の強弱（声を入れる T6 までの仮）。
-import { parseScore, timeline, accompaniment, transposeOf, slowed } from './score.js?v=26';
-import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=26';
-import { UtaLyrics } from './uta-lyrics.js?v=26';
-import { UtaMap } from './uta-map.js?v=26';
-import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=26';
+import { parseScore, timeline, accompaniment, transposeOf, slowed } from './score.js?v=27';
+import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=27';
+import { UtaLyrics } from './uta-lyrics.js?v=27';
+import { UtaMap } from './uta-map.js?v=27';
+import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=27';
 
 // 音の切れ目は「両方」（すき間＋字を音の頭に。Gin、2026-11-04）。確かめ用：?cut=none|gap|char で、ほかの案に切り替える。
 // 下の歌詞のいまの字に下線を付ける（U3。Gin、2026-11-04）。確かめ用：?mark=0 で外す
@@ -288,8 +288,10 @@ function beginAudio(c) {
 const portraitQuery = window.matchMedia?.('(orientation: portrait)');
 function isPortrait() { return !!portraitQuery?.matches; }
 
-/** 見方の一枚を、線の段にぴったり重ねる */
+/** 見方の一枚を、線の段にぴったり重ねる。知らせの札は線の段の中ほどに */
 function placeHowCard() {
+  // 知らせの札（「触ると続きから」など）も、線の段の中ほどに置く。地図の帯といまの位置の印を隠さないように（11/7）
+  cue.style.top = `${canvas.offsetTop + canvas.offsetHeight / 2}px`;
   howCard.style.top = `${canvas.offsetTop}px`;
   howCard.style.height = `${canvas.offsetHeight}px`;
 }
