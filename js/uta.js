@@ -1,11 +1,11 @@
 // 歌モード：曲の一覧 → 曲名を押す → 線が流れる。
 // T2b：伴奏を鳴らし、線と歌詞は伴奏の時計に合わせて流す。線の太さは楽譜の強弱（声を入れる T6 までの仮）。
-import { parseScore, timeline, accompaniment, transposeOf, slowed, instrumentalSpans } from './score.js?v=45';
-import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=45';
-import { UtaLyrics } from './uta-lyrics.js?v=45';
-import { UtaMap } from './uta-map.js?v=45';
-import { initContrastToggle, contrastDebug } from './contrast.js?v=45';
-import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=45';
+import { parseScore, timeline, accompaniment, transposeOf, slowed, instrumentalSpans } from './score.js?v=46';
+import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=46';
+import { UtaLyrics } from './uta-lyrics.js?v=46';
+import { UtaMap } from './uta-map.js?v=46';
+import { initContrastToggle, contrastDebug } from './contrast.js?v=46';
+import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=46';
 
 // 音の切れ目は「両方」（すき間＋字を音の頭に。Gin、2026-11-04）。確かめ用：?cut=none|gap|char で、ほかの案に切り替える。
 // 下の歌詞のいまの字に下線を付ける（U3。Gin、2026-11-04）。確かめ用：?mark=0 で外す
@@ -113,7 +113,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') { pause(c, 'hidden'); return; }
   relayoutSoon(); // 裏にいるあいだに全画面・ツールバーが替わっても、resize を受け取れていないことがある（OnePlus 6、11/7）
   keepAwake(); // 画面を暗くしない約束は、見えなくなると外れるので頼み直す
-  if (c.paused && c.why === 'hidden') cue.textContent = PAUSE_TEXT.hidden;
+  if (c.paused && c.why === 'hidden') setCue(PAUSE_TEXT.hidden);
 });
 
 /**
@@ -189,7 +189,7 @@ async function loadSongs() {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'song-button';
-      b.textContent = score.title;
+      b.innerHTML = rubyHtml(score.title);
       li.append(b);
       // 高さを選べるのは、「移調」と「元の調」を書いた曲だけ（いまはふるさと。Gin、2026-11-05）。ふだんは移調した高さ
       let orig = null;
@@ -198,7 +198,9 @@ async function loadSongs() {
         label.className = 'key-choice';
         orig = document.createElement('input');
         orig.type = 'checkbox';
-        label.append(orig, `元の本の高さ（${score.meta['元の調']}）で鳴らす`);
+        const t = document.createElement('span');
+        t.innerHTML = rubyHtml(`元の本の高さ（${score.meta['元の調']}）で鳴らす`);
+        label.append(orig, t);
         li.append(label);
       }
       // ゆっくり（4 分の 3 の速さ）。どの曲にも一つ。ふだんは元の速さ
@@ -271,10 +273,10 @@ function start(score) {
   listView.hidden = true;
   topView.hidden = true;
   playView.hidden = false;
-  $('play-title').textContent = score.title;
-  $('play-note').textContent = [score.meta['添え書き'], score.keyNote, score.slow ? 'ゆっくり' : ''].filter(Boolean).join('　');
+  setRubyText($('play-title'), score.title);
+  setRubyText($('play-note'), [score.meta['添え書き'], score.keyNote, score.slow ? 'ゆっくり' : ''].filter(Boolean).join('　'));
   status.textContent = '';
-  cue.textContent = 'まもなく始まります';
+  setCue('まもなく始まります');
   clock.hidden = !CLOCK;
   clock.textContent = CLOCK ? 'まもなく' : '';
   setViewHeight();
@@ -290,7 +292,7 @@ function start(score) {
   if (isFullscreen()) current.wantFullscreen = true; // もう全画面のまま始めた（知らせが来ない）
   // 確かめ用：?t=秒 で、その時刻の絵で止める（写しを撮るため。音は鳴らさない）
   const at = Number(params.get('t'));
-  if (at >= 0 && params.has('t')) { cue.textContent = ''; line.draw(at); lyrics.update(at); showHow(current, at); map.draw(at); return; }
+  if (at >= 0 && params.has('t')) { setCue(''); line.draw(at); lyrics.update(at); showHow(current, at); map.draw(at); return; }
   // 確かめ用：?from=秒 で、その秒から流す（終わりの所を早く確かめるため）
   const from = Math.max(0, Number(params.get('from')) || 0);
   current.from = from;
@@ -305,7 +307,7 @@ function start(score) {
       if (!me.paused) beginAudio(me); // 縦向き・裏に回ったあいだは始めずに待つ（続けるときに始める）
     }).catch(() => giveUp(me));
   } else {
-    status.textContent = 'この端末では伴奏を鳴らせません（線と歌詞だけ流します）';
+    status.innerHTML = rubyHtml('この端末では伴奏を鳴らせません（線と歌詞だけ流します）');
   }
   current.t0 -= from * 1000;
   keepAwake();
@@ -360,6 +362,37 @@ function showHow(c, t) {
  * 止める（4 章の手順 3 の仕組み）。why：'tap'（触った）・'portrait'（縦になった）・'hidden'（裏に回った）。
  * 止めている理由は一つだけ持つ。あとから来た理由で上書きする（縦のまま裏に回ったら、戻っても触るまで待つ）。
  */
+/**
+ * 画面に出す決まった文の漢字に、ルビを付ける（Gin、11/7：漢字は全部ルビ）。語の読みはこの表に書く。長い語から当てる。
+ * 表にない漢字は、そのまま出る（新しい文を足したら、ここにも足す）
+ */
+const READINGS = {
+  一覧: 'いちらん', 一度: 'いちど', 伴奏: 'ばんそう', 曲名: 'きょくめい', 端末: 'たんまつ', 歌詞: 'かし', 長調: 'ちょうちょう',
+  故郷: 'ふるさと', 小川: 'おがわ',
+  始: 'はじ', 触: 'さわ', 続: 'つづ', 戻: 'もど', 押: 'お', 鳴: 'な', 線: 'せん', 流: 'なが', 元: 'もと', 本: 'ほん', 高: 'たか',
+  詞: 'し', 年: 'ねん', 春: 'はる',
+};
+const READING_KEYS = Object.keys(READINGS).sort((a, b) => b.length - a.length);
+function rubyHtml(text) {
+  let out = '';
+  for (let i = 0; i < text.length;) {
+    const k = READING_KEYS.find((w) => text.startsWith(w, i));
+    if (k) { out += `<ruby>${k}<rt>${READINGS[k]}</rt></ruby>`; i += k.length; continue; }
+    const ch = text[i];
+    out += ch === '<' ? '&lt;' : ch === '&' ? '&amp;' : ch;
+    i += 1;
+  }
+  return out;
+}
+/** ルビつきで el に文を入れる。同じ文なら入れ直さない */
+function setRubyText(el, text) {
+  if (el.dataset.text === text) return;
+  el.dataset.text = text;
+  el.innerHTML = rubyHtml(text);
+}
+/** 流れの知らせの札（「まもなく始まります」など）。ルビつき */
+const setCue = (text) => setRubyText(cue, text);
+
 const PAUSE_TEXT = { tap: 'とまっています（触ると続き）', portrait: 'とまっています（触ると続き）', hidden: '触ると続きから' };
 function pause(c, why) {
   if (c.done) return;
@@ -371,7 +404,7 @@ function pause(c, why) {
     if (c.audio?.started) c.audio.ctx.suspend().catch(() => {});
   }
   c.why = why;
-  cue.textContent = PAUSE_TEXT[why];
+  setCue(PAUSE_TEXT[why]);
 }
 
 /** 続きから。触った処理の中で呼べば、iPhone でも音を起こせる */
@@ -380,7 +413,7 @@ function resume(c) {
   const now = performance.now();
   c.paused = false;
   c.why = null;
-  cue.textContent = '';
+  setCue('');
   if (c.audio) {
     if (!c.audio.started) {
       // 縦のまま始まりを待っていた：いま鳴らし始める（音の部品が起きるのを待っているなら、起きたときに始まる）
@@ -422,7 +455,7 @@ portraitQuery?.addEventListener?.('change', () => {
     c.paused = true;
     c.pausedT = c.audio?.started ? c.audio.songTime() : c.from - LEAD_SEC;
     c.why = 'tap';
-    cue.textContent = PAUSE_TEXT.tap;
+    setCue(PAUSE_TEXT.tap);
   }, 600);
 });
 
@@ -438,8 +471,8 @@ function giveUp(c) {
   // 線と歌詞は、伴奏なしでいまの所から流し続ける
   c.paused = false;
   c.why = null;
-  cue.textContent = '';
-  status.textContent = '伴奏が始まりませんでした。一覧へ戻って、もう一度曲名を押してください'
+  setCue('');
+  status.innerHTML = rubyHtml('伴奏が始まりませんでした。一覧へ戻って、もう一度曲名を押してください')
     + (DEBUG ? `（音の仕組み：${audioCtx?.state}）` : '');
 }
 
@@ -465,7 +498,7 @@ function tick() {
   const how = showHow(c, t);
   if (!c.paused) {
     const msg = t < 0 && !how ? 'まもなく始まります' : ''; // 一枚を出しているときは、一枚の中に出す
-    if (cue.textContent !== msg) cue.textContent = msg;
+    setCue(msg);
   }
   c.line.draw(t);
   c.map.draw(t);
@@ -478,7 +511,7 @@ function tick() {
     // おしまい：数秒たつと、一覧に戻る（4 章の手順 4）
     c.done = true;
     c.wantFullscreen = false;
-    cue.textContent = 'おしまい';
+    setCue('おしまい');
     c.lyrics.finish(); // 下に残る「（後奏）」は消す
     c.audio?.stop();
     letSleep();
@@ -491,7 +524,7 @@ function tick() {
 function back() {
   if (current) { cancelAnimationFrame(current.raf); current.audio?.stop(); current.wantFullscreen = false; }
   current = null;
-  cue.textContent = '';
+  setCue('');
   howCard.hidden = true;
   exitFullscreen();
   letSleep();
@@ -580,7 +613,9 @@ document.addEventListener('fullscreenchange', relayoutSoon);
 document.addEventListener('webkitfullscreenchange', relayoutSoon);
 window.addEventListener('pageshow', relayoutSoon); // 戻るボタンなどで、しまってあったページが出てきたとき
 // 書体が届くと字の高さが変わるので、歌詞の欄を合わせ直す
-document.fonts?.addEventListener?.('loadingdone', () => current?.lyrics.fit());
+document.fonts?.addEventListener?.('loadingdone', () => { current?.lyrics.fit(); fitHowCard(); });
+// 見方の一枚も、書体が届いたあとの字で大きさを決め直す（11/7）
+document.fonts?.ready?.then(() => fitHowCard()).catch(() => {});
 loadSongs().then(() => {
   // 確かめ用：?song=番号 で、その曲をすぐ開く
   const n = new URLSearchParams(location.search).get('song');

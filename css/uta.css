@@ -30,7 +30,7 @@
 .top-how { padding-left: 1.2em; }
 .top-note { margin: 16px 0 0; font-size: 0.9rem; color: var(--muted); }
 @media (orientation: landscape) and (min-width: 600px) {
-  .top-view { display: grid; grid-template-columns: minmax(220px, 2fr) 5fr; column-gap: 28px; align-items: start; height: 100vh; height: 100dvh; }
+  .top-view { display: grid; grid-template-columns: minmax(220px, 2fr) 5fr; column-gap: 28px; align-items: start; height: 100vh; height: 100dvh; height: var(--view-h, 100dvh); }
   .top-head { align-self: center; }
   .top-body { height: 100%; overflow-y: auto; padding-bottom: 4px; }
   .top-body section { margin-top: 10px; }
@@ -59,6 +59,8 @@
 .key-choice { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 4px 8px; color: var(--muted); font-size: 1.2rem; cursor: pointer; }
 .song-list li { display: flex; flex-wrap: wrap; align-items: center; column-gap: 20px; }
 .key-choice rt { font-size: 0.5em; }
+/* 2 字の語に長い読みが乗る所（曲名・ト長調）で、字の間が開かないよう、ルビは真ん中に寄せる（11/7） */
+.lead ruby, .key-choice ruby { ruby-align: center; }
 .key-choice input { width: 28px; height: 28px; accent-color: var(--text); }
 /* 書き出し（?export=1 のときだけ出る。デモ動画の音を作るため） */
 .export-button { margin-top: 6px; min-height: 48px; font-size: 1.1rem; }
