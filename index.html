@@ -25,11 +25,42 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=44">
-  <link rel="stylesheet" href="css/uta.css?v=44">
+  <link rel="stylesheet" href="css/style.css?v=45">
+  <link rel="stylesheet" href="css/uta.css?v=45">
 </head>
 <body class="uta">
-  <section id="list-view" class="list-view">
+  <!-- はじめの一枚（11/7）：曲の一覧の前に、なぜ作ったか・だれに向けて作ったか・見かたを出す。ボタンは「歌を選ぶ」1 つだけ。
+       いまは毎回ここから始める（2 回目から飛ばすかは、まだ決めていない） -->
+  <section id="top-view" class="top-view" aria-labelledby="top-title">
+    <div class="top-head">
+      <h1 id="top-title"><ruby>音<rt>おと</rt></ruby>めがね</h1>
+      <p class="top-sub"><span><ruby>歌<rt>うた</rt></ruby>の<ruby>形<rt>かたち</rt></ruby>を、</span><span><ruby>目<rt>め</rt></ruby>で<ruby>見<rt>み</rt></ruby>えるように。</span></p>
+      <button id="btn-choose" class="top-go" type="button"><ruby>歌<rt>うた</rt></ruby>を<ruby>選<rt>えら</rt></ruby>ぶ</button>
+    </div>
+    <div class="top-body">
+      <section>
+        <h2>なぜ</h2>
+        <p><ruby>耳<rt>みみ</rt></ruby>が<ruby>遠<rt>とお</rt></ruby>くなってきた<ruby>父<rt>ちち</rt></ruby>に<ruby>歌<rt>うた</rt></ruby>を<ruby>聞<rt>き</rt></ruby>かせたら、「なにを<ruby>歌<rt>うた</rt></ruby>っているのか、よく<ruby>聞<rt>き</rt></ruby>こえない」と<ruby>言<rt>い</rt></ruby>われました。<ruby>歌<rt>うた</rt></ruby>が<ruby>運<rt>はこ</rt></ruby>ぶのは、<ruby>言葉<rt>ことば</rt></ruby>だけではありません。<ruby>音<rt>おと</rt></ruby>の<ruby>高<rt>たか</rt></ruby>さも、<ruby>盛<rt>も</rt></ruby>り<ruby>上<rt>あ</rt></ruby>がりも、<ruby>目<rt>め</rt></ruby>で<ruby>渡<rt>わた</rt></ruby>したいと<ruby>思<rt>おも</rt></ruby>いました。</p>
+      </section>
+      <section>
+        <h2>だれのために</h2>
+        <p><ruby>耳<rt>みみ</rt></ruby>が<ruby>遠<rt>とお</rt></ruby>くなってきた<ruby>家族<rt>かぞく</rt></ruby>と、そばで<ruby>歌<rt>うた</rt></ruby>を<ruby>届<rt>とど</rt></ruby>けたい<ruby>人<rt>ひと</rt></ruby>のために<ruby>作<rt>つく</rt></ruby>りました。<ruby>画面<rt>がめん</rt></ruby>を<ruby>動<rt>うご</rt></ruby>かすのは、そばの<ruby>人<rt>ひと</rt></ruby>です。<ruby>見<rt>み</rt></ruby>る<ruby>人<rt>ひと</rt></ruby>は、<ruby>見<rt>み</rt></ruby>るだけで<ruby>大丈夫<rt>だいじょうぶ</rt></ruby>です。テレビに<ruby>映<rt>うつ</rt></ruby>すと、<ruby>楽<rt>らく</rt></ruby>な<ruby>姿勢<rt>しせい</rt></ruby>のまま<ruby>見<rt>み</rt></ruby>られます。</p>
+      </section>
+      <section>
+        <h2><ruby>見<rt>み</rt></ruby>かた</h2>
+        <ul class="top-how">
+          <li><ruby>左寄<rt>ひだりよ</rt></ruby>りの<ruby>縦<rt>たて</rt></ruby>の<ruby>線<rt>せん</rt></ruby>が、「いま」。</li>
+          <li><ruby>線<rt>せん</rt></ruby>の<ruby>高<rt>たか</rt></ruby>さは、<ruby>音<rt>おと</rt></ruby>の<ruby>高<rt>たか</rt></ruby>さ。<ruby>線<rt>せん</rt></ruby>の<ruby>太<rt>ふと</rt></ruby>さは、<ruby>音<rt>おと</rt></ruby>の<ruby>大<rt>おお</rt></ruby>きさ。</li>
+          <li><ruby>線<rt>せん</rt></ruby>の<ruby>上<rt>うえ</rt></ruby>の<ruby>字<rt>じ</rt></ruby>が、いま<ruby>歌<rt>うた</rt></ruby>っている<ruby>字<rt>じ</rt></ruby>。</li>
+          <li><ruby>画面<rt>がめん</rt></ruby>のどこに<ruby>触<rt>さわ</rt></ruby>っても、<ruby>止<rt>と</rt></ruby>まります。もう<ruby>一度<rt>いちど</rt></ruby><ruby>触<rt>さわ</rt></ruby>ると、<ruby>続<rt>つづ</rt></ruby>きから。</li>
+        </ul>
+      </section>
+      <p class="top-note"><ruby>医療<rt>いりょう</rt></ruby><ruby>機器<rt>きき</rt></ruby>ではありません。<ruby>聞<rt>き</rt></ruby>こえを<ruby>診断<rt>しんだん</rt></ruby>・<ruby>治療<rt>ちりょう</rt></ruby>・<ruby>改善<rt>かいぜん</rt></ruby>するものではありません。</p>
+    </div>
+  </section>
+
+  <section id="list-view" class="list-view" hidden>
+    <p class="to-top"><button id="btn-top" class="quiet-button" type="button">← はじめの<ruby>画面<rt>がめん</rt></ruby>へ</button></p>
     <h1>音めがね</h1>
     <p class="lead">歌の高さを、線の上下で見せます。曲名を押してください。</p>
     <ul id="song-list" class="song-list"></ul>
@@ -80,6 +111,8 @@
           <p><ruby>線<rt>せん</rt></ruby>の<ruby>上<rt>うえ</rt></ruby>の<ruby>字<rt>じ</rt></ruby>が、<br>いま<ruby>歌<rt>うた</rt></ruby>っている<ruby>字<rt>じ</rt></ruby></p>
         </div>
       </div>
+      <!-- 11/7 に足した 2 つ（音を聞かずに試してもらった人の声から）。いまの線の場所と、触ると止まること -->
+      <p class="how-more"><ruby>左寄<rt>ひだりよ</rt></ruby>りの<ruby>線<rt>せん</rt></ruby>が、いま。<br><ruby>画面<rt>がめん</rt></ruby>のどこに<ruby>触<rt>さわ</rt></ruby>っても、<ruby>止<rt>と</rt></ruby>まります。もう<ruby>一度<rt>いちど</rt></ruby><ruby>触<rt>さわ</rt></ruby>ると、<ruby>続<rt>つづ</rt></ruby>きから。</p>
     </div>
     <!-- 縦向きのときだけ出す。縦のあいだは音を始めずに待ち、曲の途中で縦になったら止める。横に戻ったら続きから（11/7）。
          アプリの中のブラウザや、向きを縦に固定した端末は横にならないため、その二つの案内を小さく添える -->
@@ -93,6 +126,6 @@
     </div>
   </section>
 
-  <script type="module" src="js/uta.js?v=44"></script>
+  <script type="module" src="js/uta.js?v=45"></script>
 </body>
 </html>

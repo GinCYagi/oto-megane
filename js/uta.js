@@ -1,11 +1,11 @@
 // 歌モード：曲の一覧 → 曲名を押す → 線が流れる。
 // T2b：伴奏を鳴らし、線と歌詞は伴奏の時計に合わせて流す。線の太さは楽譜の強弱（声を入れる T6 までの仮）。
-import { parseScore, timeline, accompaniment, transposeOf, slowed, instrumentalSpans } from './score.js?v=44';
-import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=44';
-import { UtaLyrics } from './uta-lyrics.js?v=44';
-import { UtaMap } from './uta-map.js?v=44';
-import { initContrastToggle, contrastDebug } from './contrast.js?v=44';
-import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=44';
+import { parseScore, timeline, accompaniment, transposeOf, slowed, instrumentalSpans } from './score.js?v=45';
+import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=45';
+import { UtaLyrics } from './uta-lyrics.js?v=45';
+import { UtaMap } from './uta-map.js?v=45';
+import { initContrastToggle, contrastDebug } from './contrast.js?v=45';
+import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=45';
 
 // 音の切れ目は「両方」（すき間＋字を音の頭に。Gin、2026-11-04）。確かめ用：?cut=none|gap|char で、ほかの案に切り替える。
 // 下の歌詞のいまの字に下線を付ける（U3。Gin、2026-11-04）。確かめ用：?mark=0 で外す
@@ -41,6 +41,10 @@ const SONGS = ['songs/furusato.txt', 'songs/haru_no_ogawa.txt'];
 
 const $ = (id) => document.getElementById(id);
 const listView = $('list-view');
+const topView = $('top-view');
+// はじめの一枚 ⇄ 曲の一覧（11/7）。いまは毎回はじめの一枚から始める
+$('btn-choose').addEventListener('click', () => { topView.hidden = true; listView.hidden = false; window.scrollTo(0, 0); renderListDebug(); });
+$('btn-top').addEventListener('click', () => { listView.hidden = true; topView.hidden = false; window.scrollTo(0, 0); });
 const playView = $('play-view');
 const canvas = $('uta-line');
 const status = $('play-status');
@@ -265,6 +269,7 @@ function start(score) {
   const events = withLineHue(withDynamics(timeline(score), acc));
   const ends = [...events, ...acc].map((e) => e.t + e.dur);
   listView.hidden = true;
+  topView.hidden = true;
   playView.hidden = false;
   $('play-title').textContent = score.title;
   $('play-note').textContent = [score.meta['添え書き'], score.keyNote, score.slow ? 'ゆっくり' : ''].filter(Boolean).join('　');
@@ -326,14 +331,28 @@ function placeHowCard() {
   if (DEBUG) status.classList.add('debug');
   howCard.style.top = `${canvas.offsetTop}px`;
   howCard.style.height = `${canvas.offsetHeight}px`;
+  fitHowCard();
+}
+
+/** 見方の一枚が線の段に入りきらないときは、入るまで字を小さくする（11/7 に 2 行足したため。背の低い横の画面で、枠からあふれた） */
+function fitHowCard() {
+  if (howCard.hidden) return;
+  howCard.style.removeProperty('font-size');
+  let fs = parseFloat(getComputedStyle(howCard).fontSize);
+  while (howCard.scrollHeight > howCard.clientHeight + 1 && fs > 11) {
+    fs -= 1;
+    howCard.style.fontSize = `${fs}px`;
+  }
 }
 
 /** 見方の一枚：前奏が終わる（歌が始まる約 1 秒前）まで出す。止めているあいだは「とまっています」を見せるため隠す */
 function showHow(c, t) {
   const show = !c.paused && !c.done && t < c.howUntil;
-  if (howCard.hidden === show) howCard.hidden = !show;
+  let changed = false;
+  if (howCard.hidden === show) { howCard.hidden = !show; changed = true; }
   const wait = t < 0;
-  if (howWait.hidden === wait) howWait.hidden = !wait;
+  if (howWait.hidden === wait) { howWait.hidden = !wait; changed = true; }
+  if (changed) fitHowCard();
   return show;
 }
 

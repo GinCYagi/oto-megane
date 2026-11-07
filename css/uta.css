@@ -15,6 +15,36 @@
   --map-back-future: #363d54; /* 地図の帯の奥（伴奏）のこの先 */
 }
 
+/* はじめの一枚（11/7）。縦は一段に流し、横（背の低い画面）は、左に題とボタン、右に文の二段にする。文が入らなければ右の段だけ送る */
+.top-view { max-width: 1100px; margin: 0 auto; padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+.top-view[hidden] { display: none; }
+.top-view h1 { font-size: clamp(2rem, 7vw, 3rem); margin: 8px 0 0; line-height: 1.5; }
+.top-sub { margin: 0 0 16px; font-size: clamp(1.2rem, 4.5vw, 1.6rem); color: var(--text); }
+.top-sub span { display: inline-block; } /* 「、」の所でだけ折り返す */
+.top-view rt { font-size: 0.5em; color: var(--muted); }
+.top-go { width: 100%; min-height: 88px; font-size: 1.8rem; justify-content: center; }
+.top-go:focus-visible, .quiet-button:focus-visible { outline: 3px solid var(--text); outline-offset: 3px; }
+.top-body section { margin-top: 18px; }
+.top-body h2 { margin: 0 0 2px; font-size: 1.1rem; color: var(--muted); }
+.top-body p, .top-how { margin: 0; font-size: 1.25rem; line-height: 1.9; }
+.top-how { padding-left: 1.2em; }
+.top-note { margin: 16px 0 0; font-size: 0.9rem; color: var(--muted); }
+@media (orientation: landscape) and (min-width: 600px) {
+  .top-view { display: grid; grid-template-columns: minmax(220px, 2fr) 5fr; column-gap: 28px; align-items: start; height: 100vh; height: 100dvh; }
+  .top-head { align-self: center; }
+  .top-body { height: 100%; overflow-y: auto; padding-bottom: 4px; }
+  .top-body section { margin-top: 10px; }
+  .top-body section:first-child { margin-top: 4px; }
+  .top-body p, .top-how { line-height: 1.6; font-size: clamp(0.85rem, 3.6vh, 1.5rem); font-size: clamp(0.85rem, 3.6dvh, 1.5rem); }
+  .top-body h2 { font-size: clamp(0.85rem, 3.6dvh, 1.1rem); }
+  .top-body .top-note { margin-top: 8px; font-size: clamp(0.75rem, 3dvh, 0.9rem); }
+  .top-sub { font-size: clamp(1.1rem, 5.5dvh, 1.6rem); }
+}
+/* 一覧の上の、はじめの一枚へ戻る小さな入口 */
+.to-top { margin: 8px 0 0; }
+.quiet-button { min-height: 44px; padding: 0 12px; font-size: 1rem; color: var(--muted); background: transparent; border-color: transparent; }
+.quiet-button rt { font-size: 0.5em; }
+
 .list-view { max-width: 900px; margin: 0 auto; padding: 0 16px; }
 .list-view h1 { font-size: 2rem; }
 
@@ -132,6 +162,8 @@
 .how-row { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 0.2em; max-width: 22em; }
 .how-row p { margin: 0; line-height: 1.6; text-align: center; }
 .how-row rt { font-size: 0.45em; color: var(--muted); }
+.how-more { margin: 0; text-align: center; color: var(--text); line-height: 1.6; }
+.how-more rt { font-size: 0.45em; color: var(--muted); }
 .how-pic { width: 100%; max-width: 9em; height: auto; }
 .how-pic line { stroke: var(--line); stroke-linecap: round; }
 .how-pic .how-thin { stroke-width: 3; }
