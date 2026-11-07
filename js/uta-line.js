@@ -144,9 +144,14 @@ export class UtaLine {
     this.onsets = events.filter((e) => e.midi !== null && e.text !== 'ー');
     this.calm = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.range = songRange(events);
+    this.refreshColors();
+  }
+
+  /** 色と太さを CSS から読み直す（白黒（くっきり）が曲の途中で替わったときも、その場でそろえる。T18） */
+  refreshColors() {
     this.colors = { past: cssVar('--line'), future: cssVar('--future'), now: cssVar('--nowline'), bg: cssVar('--bg') };
     this.hues = hueColors();
-    this.scale = Number(cssVar('--line-scale')) || 1; // 白黒（くっきり）のときは太く（T18）
+    this.scale = Number(cssVar('--line-scale')) || 1; // 白黒（くっきり）のときは太く
   }
 
   /** 画面の大きさに合わせて、キャンバスの画素を整える（高精細の画面でもにじまないように） */

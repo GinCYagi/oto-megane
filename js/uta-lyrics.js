@@ -1,7 +1,8 @@
 // 歌モードの歌詞。線の下に、いまの行を大きく、次の行を小さく暗めに出す。
 // 行が替わるときは、次の行がいまの行の場所へ上がるだけにする（明るさを急に変えない）。
-import { HOLD } from './score.js?v=32';
+import { HOLD } from './score.js?v=34';
 
+const NEXT_SCALE = 0.62; // 次の行の大きさ（css/uta.css の .lyric[data-pos="next"] の scale と同じ）
 const LEAD_SEC = 0.6; // 次の行の頭のこれだけ前に、行を替える（前の行が終わっていれば）
 
 /**
@@ -97,6 +98,45 @@ export class UtaLyrics {
       });
       return p;
     }));
+  }
+
+  /**
+   * 歌詞の欄に、いまの行と次の行（0.62 倍）が、ルビごといつでも収まるようにする（Gin、11/7：全画面の横で下の行が切れた）。
+   * 行の高さ（行の箱の上にはみ出すルビも含む）を実際に測り、入らなければ字を小さくする。次の行は、いまの行の字の下に gap だけ空けて、ルビから置く。
+   * 欄の大きさが替わったとき・書体が届いたときに呼ぶ。
+   */
+  fit() {
+    const box = this.box;
+    const H = box.clientHeight;
+    const ps = [...box.children];
+    if (!H || !ps.length) return;
+    box.style.removeProperty('--lyric-fs');
+    // 行ごとに、行の箱の上にはみ出す分（ルビ）A と、箱の上から字の下までの B を測る（縮めて置いた行も、元の大きさに直して）
+    const measure = () => {
+      let A = 0, B = 0;
+      for (const p of ps) {
+        const pr = p.getBoundingClientRect();
+        const k = pr.height / (p.offsetHeight || 1) || 1;
+        let top = pr.top, bottom = pr.bottom;
+        for (const e of p.querySelectorAll('rt, .syl')) {
+          for (const r of e.getClientRects()) { top = Math.min(top, r.top); bottom = Math.max(bottom, r.bottom); }
+        }
+        A = Math.max(A, (pr.top - top) / k);
+        B = Math.max(B, (bottom - pr.top) / k);
+      }
+      return { A, B };
+    };
+    let { A, B } = measure();
+    const top = H * 0.02, gap = Math.max(6, H * 0.06);
+    const need = top + (A + B) * (1 + NEXT_SCALE) + gap;
+    if (need > H) {
+      const fs = parseFloat(getComputedStyle(ps[0]).fontSize);
+      box.style.setProperty('--lyric-fs', `${Math.floor(fs * (H - top - gap) / ((A + B) * (1 + NEXT_SCALE)))}px`);
+      ({ A, B } = measure());
+    }
+    const nowY = top + A;
+    box.style.setProperty('--now-y', `${nowY}px`);
+    box.style.setProperty('--next-y', `${nowY + B + gap + A * NEXT_SCALE}px`);
   }
 
   update(t) {

@@ -93,8 +93,10 @@
 @supports (height: 1cqh) {
   .lyric { font-size: clamp(1rem, 30cqh, 5.2rem); } /* 11/7 に少し大きく（27cqh → 30cqh） */
 }
-.lyric[data-pos="now"]   { transform: translateY(0.2em) scale(1); opacity: 1; color: var(--text); }
-.lyric[data-pos="next"]  { transform: translateY(2.2em) scale(0.62); opacity: 1; color: var(--muted); }
+/* 2 行がルビごと欄に入らないときは、JS（UtaLyrics.fit）が測って字を小さくする */
+.lyrics[style*="--lyric-fs"] .lyric { font-size: var(--lyric-fs); }
+.lyric[data-pos="now"]   { transform: translateY(var(--now-y, 0.2em)) scale(1); opacity: 1; color: var(--text); }
+.lyric[data-pos="next"]  { transform: translateY(var(--next-y, 2.2em)) scale(0.62); opacity: 1; color: var(--muted); }
 /* 替わるとき、前の行はすぐ薄れて（0.2 秒）上へ抜ける。上がってくる新しい行と、同じ場所で重ならないように */
 .lyric[data-pos="past"]  { transform: translateY(-2.6em) scale(0.62); opacity: 0; transition: transform 0.6s ease, opacity 0.2s linear; }
 .lyric[data-pos="later"] { transform: translateY(3.2em) scale(0.62); opacity: 0; }
@@ -105,6 +107,8 @@
 /* 困ったときの知らせ（伴奏が始まらない など）と ?debug=1。歌詞と重なっても読めるよう、地の色の帯にして小さめに */
 .play-status { position: absolute; left: 0; right: 0; bottom: max(8px, env(safe-area-inset-bottom)); margin: 0 16px; font-size: 1.2rem; text-align: center; background: var(--bg); }
 .play-status:empty { display: none; }
+/* ?debug=1 の表示は、歌詞にかぶらないよう、線の段の上の端に小さく（11/7：下の行の歌詞を隠していた） */
+.play-status.debug { bottom: auto; font-size: 0.8rem; opacity: 0.9; }
 /* 流れの知らせ（T5）。線の段の真ん中に、地の色の札で。字が出るだけで、光らせない */
 .play-cue { position: absolute; left: 50%; top: 30%; transform: translate(-50%, -50%); margin: 0; padding: 0.3em 0.9em; max-width: 90%; white-space: nowrap; text-align: center; font-size: clamp(1.3rem, 7vh, 2.6rem); font-size: clamp(1.3rem, 7dvh, 2.6rem); background: var(--bg); border: 1.5px solid var(--edge); border-radius: var(--radius); pointer-events: none; }
 .play-cue:empty { display: none; }

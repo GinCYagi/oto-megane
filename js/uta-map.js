@@ -1,4 +1,4 @@
-import { hueColors } from './uta-line.js?v=32';
+import { hueColors } from './uta-line.js?v=34';
 
 // 地図の帯（T4）：画面の上の細い帯に、曲全体を山脈の形で描き、いまの位置に印を付ける。
 // 帯の山は「大きさ」だけを表す。音の高さは起伏に入れない（Gin、2026-11-07）。
@@ -130,6 +130,11 @@ export class UtaMap {
     this.events = events;
     this.acc = acc;
     this.spans = hueSpans(events, end);
+    this.refreshColors();
+  }
+
+  /** 色を CSS から読み直す（白黒（くっきり）が曲の途中で替わったときも、その場でそろえる。T18） */
+  refreshColors() {
     this.hues = hueColors();
     this.colors = {
       past: cssVar('--line'), future: cssVar('--future'), now: cssVar('--nowline'), base: cssVar('--grid'),

@@ -1,11 +1,11 @@
 // 歌モード：曲の一覧 → 曲名を押す → 線が流れる。
 // T2b：伴奏を鳴らし、線と歌詞は伴奏の時計に合わせて流す。線の太さは楽譜の強弱（声を入れる T6 までの仮）。
-import { parseScore, timeline, accompaniment, transposeOf, slowed } from './score.js?v=32';
-import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=32';
-import { UtaLyrics } from './uta-lyrics.js?v=32';
-import { UtaMap } from './uta-map.js?v=32';
-import { initContrastToggle, contrastDebug } from './contrast.js?v=32';
-import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=32';
+import { parseScore, timeline, accompaniment, transposeOf, slowed } from './score.js?v=34';
+import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=34';
+import { UtaLyrics } from './uta-lyrics.js?v=34';
+import { UtaMap } from './uta-map.js?v=34';
+import { initContrastToggle, contrastDebug } from './contrast.js?v=34';
+import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=34';
 
 // 音の切れ目は「両方」（すき間＋字を音の頭に。Gin、2026-11-04）。確かめ用：?cut=none|gap|char で、ほかの案に切り替える。
 // 下の歌詞のいまの字に下線を付ける（U3。Gin、2026-11-04）。確かめ用：?mark=0 で外す
@@ -265,6 +265,7 @@ function start(score) {
   const lyrics = new UtaLyrics($('lyrics'), events, { markNow: MARK, score });
   const map = new UtaMap($('uta-map'), events, Math.max(...ends), acc);
   map.fit();
+  lyrics.fit();
   const firstSing = events.find((e) => e.midi !== null)?.t ?? 0;
   current = { line, lyrics, audio: null, end: Math.max(...ends), t0: performance.now() + LEAD_SEC * 1000, map, raf: 0, howUntil: firstSing - HOW_UNTIL_SEC };
   placeHowCard();
@@ -306,6 +307,7 @@ function isPortrait() { return !!portraitQuery?.matches; }
 function placeHowCard() {
   // 知らせの札（「触ると続きから」など）も、線の段の中ほどに置く。地図の帯といまの位置の印を隠さないように（11/7）
   cue.style.top = `${canvas.offsetTop + canvas.offsetHeight / 2}px`;
+  if (DEBUG) { status.classList.add('debug'); status.style.top = `${canvas.offsetTop}px`; }
   howCard.style.top = `${canvas.offsetTop}px`;
   howCard.style.height = `${canvas.offsetHeight}px`;
 }
@@ -494,7 +496,9 @@ playView.addEventListener('click', (e) => {
   togglePause(current);
 });
 // 大きさが変わると、キャンバスは空になる。止まっているときも、最後の時刻で描き直す
-window.addEventListener('resize', () => { if (!current) return; placeHowCard(); current.map.fit(); current.map.draw(current.line.lastT ?? 0); current.line.fit(); current.line.draw(current.line.lastT ?? 0); });
+window.addEventListener('resize', () => { if (!current) return; placeHowCard(); current.map.fit(); current.map.draw(current.line.lastT ?? 0); current.line.fit(); current.line.draw(current.line.lastT ?? 0); current.lyrics.fit(); });
+// 書体が届くと字の高さが変わるので、歌詞の欄を合わせ直す
+document.fonts?.addEventListener?.('loadingdone', () => current?.lyrics.fit());
 loadSongs().then(() => {
   // 確かめ用：?song=番号 で、その曲をすぐ開く
   const n = new URLSearchParams(location.search).get('song');
@@ -503,5 +507,16 @@ loadSongs().then(() => {
 
 // 見やすさ：白黒（くっきり）の切り替え（T18）。色は曲を始めるときに読むので、一覧で替えれば次の曲から効く
 const contrastToggle = document.getElementById('contrast-toggle');
-if (contrastToggle) initContrastToggle(contrastToggle, renderListDebug);
+// 白黒（くっきり）が替わったら（押したとき・端末の設定が替わったとき）、曲の途中でも線の画面と帯をその場で描き直し、ページの色とそろえる（11/7）
+function onContrastChange() {
+  renderListDebug();
+  if (!current) return;
+  const t = current.line.lastT ?? 0;
+  current.line.refreshColors();
+  current.map.refreshColors();
+  current.line.fit();
+  current.line.draw(t);
+  current.map.draw(t);
+}
+if (contrastToggle) initContrastToggle(contrastToggle, onContrastChange);
 renderListDebug();
