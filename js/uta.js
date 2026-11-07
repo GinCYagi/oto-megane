@@ -1,10 +1,10 @@
 // 歌モード：曲の一覧 → 曲名を押す → 線が流れる。
 // T2b：伴奏を鳴らし、線と歌詞は伴奏の時計に合わせて流す。線の太さは楽譜の強弱（声を入れる T6 までの仮）。
-import { parseScore, timeline, accompaniment, transposeOf, slowed } from './score.js?v=24';
-import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=24';
-import { UtaLyrics } from './uta-lyrics.js?v=24';
-import { UtaMap } from './uta-map.js?v=24';
-import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=24';
+import { parseScore, timeline, accompaniment, transposeOf, slowed } from './score.js?v=25';
+import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=25';
+import { UtaLyrics } from './uta-lyrics.js?v=25';
+import { UtaMap } from './uta-map.js?v=25';
+import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=25';
 
 // 音の切れ目は「両方」（すき間＋字を音の頭に。Gin、2026-11-04）。確かめ用：?cut=none|gap|char で、ほかの案に切り替える。
 // 下の歌詞のいまの字に下線を付ける（U3。Gin、2026-11-04）。確かめ用：?mark=0 で外す
@@ -82,8 +82,14 @@ function letSleep() {
   wakeLock = null;
 }
 // ほかのアプリへ移ると、画面を暗くしない約束は自動で外れる。曲の画面に戻ったら、もう一度頼む
+// 裏に回ったら（ほかのアプリに移った・画面を消した）、すぐ止める。戻っても自動では鳴らさず、
+// 「触ると続きから」と出して待つ（iPhone では触らないと音を起こせないことがあるため。Gin、11/7）
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && current && !current.done) keepAwake();
+  const c = current;
+  if (!c || c.done) return;
+  if (document.visibilityState === 'hidden') { pause(c, 'hidden'); return; }
+  keepAwake(); // 画面を暗くしない約束は、見えなくなると外れるので頼み直す
+  if (c.paused && c.why === 'hidden') cue.textContent = PAUSE_TEXT.hidden;
 });
 
 /**
@@ -262,15 +268,25 @@ function start(score) {
     current.audio = new UtaAccompaniment(audio.ctx, sound.filter((e) => e.t >= from));
     me.starting = audio.ready.then(() => {
       if (current !== me) return; // 起きるのを待つあいだに、一覧へ戻った
-      me.audio.start(audio.ctx.currentTime + LEAD_SEC - from);
+      me.ready = true;
+      if (!me.paused) beginAudio(me); // 縦向き・裏に回ったあいだは始めずに待つ（続けるときに始める）
     }).catch(() => giveUp(me));
   } else {
     status.textContent = 'この端末では伴奏を鳴らせません（線と歌詞だけ流します）';
   }
   current.t0 -= from * 1000;
   keepAwake();
+  if (isPortrait()) pause(current, 'portrait'); // 縦のあいだは、音を始めずに待つ
   tick();
 }
+
+/** 伴奏を鳴らし始める。曲の頭の LEAD_SEC 前から数える（待ったあとも「まもなく始まります」から） */
+function beginAudio(c) {
+  c.audio.start(c.audio.ctx.currentTime + LEAD_SEC - c.from);
+}
+
+const portraitQuery = window.matchMedia?.('(orientation: portrait)');
+function isPortrait() { return !!portraitQuery?.matches; }
 
 /** 見方の一枚を、線の段にぴったり重ねる */
 function placeHowCard() {
@@ -287,22 +303,39 @@ function showHow(c, t) {
   return show;
 }
 
-/** 画面に触ると止まる。もう一度触ると、続きから（4 章の手順 3） */
-function togglePause(c) {
+/**
+ * 止める（4 章の手順 3 の仕組み）。why：'tap'（触った）・'portrait'（縦になった）・'hidden'（裏に回った）。
+ * 止めている理由は一つだけ持つ。あとから来た理由で上書きする（縦のまま裏に回ったら、戻っても触るまで待つ）。
+ */
+const PAUSE_TEXT = { tap: 'とまっています（触ると続き）', portrait: 'とまっています（触ると続き）', hidden: '触ると続きから' };
+function pause(c, why) {
   if (c.done) return;
-  const now = performance.now();
   if (!c.paused) {
-    if (c.audio && !c.audio.started) return; // 鳴り始める前は止めない
+    const now = performance.now();
     c.paused = true;
-    c.pausedT = c.audio ? c.audio.songTime() : (now - c.t0) / 1000;
-    c.audio?.ctx.suspend().catch(() => {});
-    cue.textContent = 'とまっています（触ると続き）';
-    return;
+    if (c.audio && !c.audio.started) c.pausedT = c.from - LEAD_SEC; // まだ鳴らし始めていない：頭の前で待つ
+    else c.pausedT = c.audio ? c.audio.songTime() : (now - c.t0) / 1000;
+    if (c.audio?.started) c.audio.ctx.suspend().catch(() => {});
   }
+  c.why = why;
+  cue.textContent = PAUSE_TEXT[why];
+}
+
+/** 続きから。触った処理の中で呼べば、iPhone でも音を起こせる */
+function resume(c) {
+  if (c.done || !c.paused) return;
+  const now = performance.now();
   c.paused = false;
+  c.why = null;
   cue.textContent = '';
   if (c.audio) {
-    // 触った瞬間に起こす（iPhone は触った処理の中でないと鳴らせない）。起きなければ、見張りが伴奏なしに切り替える
+    if (!c.audio.started) {
+      // 縦のまま始まりを待っていた：いま鳴らし始める（音の部品が起きるのを待っているなら、起きたときに始まる）
+      c.audio.ctx.resume().catch(() => {});
+      if (c.ready) beginAudio(c);
+      return;
+    }
+    // 起きなければ、見張りが伴奏なしに切り替える
     c.lastMove = now;
     c.lastCt = undefined;
     c.audio.ctx.resume().catch(() => giveUp(c));
@@ -310,6 +343,34 @@ function togglePause(c) {
     c.t0 = now - c.pausedT * 1000;
   }
 }
+
+/** 画面に触ると止まる。もう一度触ると、続きから（4 章の手順 3） */
+function togglePause(c) {
+  if (c.done) return;
+  if (c.paused) { resume(c); return; }
+  if (c.audio && !c.audio.started) return; // 鳴り始める前は止めない
+  pause(c, 'tap');
+}
+
+// 縦になったら止め、横に戻ったら続きから（触らずに起こす）。
+// 触らずに起こせない端末（iPhone で起きないことがある）では、「触ると続き」と出して待つ
+portraitQuery?.addEventListener?.('change', () => {
+  const c = current;
+  if (!c || c.done) return;
+  if (isPortrait()) { if (!c.paused || c.why === 'tap') pause(c, 'portrait'); return; }
+  if (!(c.paused && c.why === 'portrait')) return;
+  resume(c);
+  const ctx = c.audio?.ctx;
+  if (!ctx) return;
+  setTimeout(() => {
+    if (current !== c || c.paused || c.done || ctx.state === 'running') return;
+    // 起きなかった：止めた形に戻して、触るのを待つ
+    c.paused = true;
+    c.pausedT = c.audio?.started ? c.audio.songTime() : c.from - LEAD_SEC;
+    c.why = 'tap';
+    cue.textContent = PAUSE_TEXT.tap;
+  }, 600);
+});
 
 /** 伴奏が始まらないとき：伴奏なしで、線と歌詞をいまの所から流し続け、どうすればよいかを出す */
 function giveUp(c) {

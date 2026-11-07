@@ -15,8 +15,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=24">
-  <link rel="stylesheet" href="css/uta.css?v=24">
+  <link rel="stylesheet" href="css/style.css?v=25">
+  <link rel="stylesheet" href="css/uta.css?v=25">
 </head>
 <body class="uta">
   <section id="list-view" class="list-view">
@@ -64,13 +64,18 @@
         </div>
       </div>
     </div>
-    <!-- 縦向きのときだけ出す。線と伴奏は止めずに裏で流し続け、横にすればそのまま見られる -->
+    <!-- 縦向きのときだけ出す。縦のあいだは音を始めずに待ち、曲の途中で縦になったら止める。横に戻ったら続きから（11/7）。
+         アプリの中のブラウザや、向きを縦に固定した端末は横にならないため、その二つの案内を小さく添える -->
     <div class="rotate-note" role="status">
-      <p>スマホを<br>横にしてください</p>
+      <p>スマホを<br><ruby>横<rt>よこ</rt></ruby>にしてください</p>
+      <ul class="rotate-help">
+        <li><ruby>画面<rt>がめん</rt></ruby>の<ruby>向<rt>む</rt></ruby>きが<ruby>固定<rt>こてい</rt></ruby>されていたら、<br><ruby>外<rt>はず</rt></ruby>してください</li>
+        <li>アプリの<ruby>中<rt>なか</rt></ruby>で<ruby>開<rt>ひら</rt></ruby>いたときは、<br>Safari か Chrome で<ruby>開<rt>ひら</rt></ruby>き<ruby>直<rt>なお</rt></ruby>してください</li>
+      </ul>
       <button id="btn-back-portrait" type="button">一覧へ</button>
     </div>
   </section>
 
-  <script type="module" src="js/uta.js?v=24"></script>
+  <script type="module" src="js/uta.js?v=25"></script>
 </body>
 </html>

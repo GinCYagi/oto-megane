@@ -111,8 +111,12 @@
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 32px;
     background: var(--bg); text-align: center; padding: 24px;
   }
-  .rotate-note p { margin: 0; font-size: clamp(2rem, 11vw, 4rem); line-height: 1.4; }
+  .rotate-note p { margin: 0; font-size: clamp(1.8rem, 9vw, 4rem); line-height: 1.5; }
   .rotate-note button { min-height: 52px; font-size: 1.4rem; }
+  .rotate-note rt { font-size: 0.4em; }
+  .rotate-help { margin: 0; padding: 0; list-style: none; max-width: 22em; color: var(--muted); font-size: clamp(1rem, 4.6vw, 1.4rem); line-height: 1.9; }
+  .rotate-help rt { font-size: 0.55em; }
+  .rotate-help li + li { margin-top: 0.6em; }
 }
 
 /* hidden を display より強くする（一覧の画面に、線の画面が重ならないように） */
