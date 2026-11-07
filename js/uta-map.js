@@ -1,4 +1,4 @@
-import { hueColors } from './uta-line.js?v=31';
+import { hueColors } from './uta-line.js?v=32';
 
 // 地図の帯（T4）：画面の上の細い帯に、曲全体を山脈の形で描き、いまの位置に印を付ける。
 // 帯の山は「大きさ」だけを表す。音の高さは起伏に入れない（Gin、2026-11-07）。

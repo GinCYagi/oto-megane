@@ -1,11 +1,11 @@
 // 歌モード：曲の一覧 → 曲名を押す → 線が流れる。
 // T2b：伴奏を鳴らし、線と歌詞は伴奏の時計に合わせて流す。線の太さは楽譜の強弱（声を入れる T6 までの仮）。
-import { parseScore, timeline, accompaniment, transposeOf, slowed } from './score.js?v=31';
-import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=31';
-import { UtaLyrics } from './uta-lyrics.js?v=31';
-import { UtaMap } from './uta-map.js?v=31';
-import { initContrastToggle } from './contrast.js?v=31';
-import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=31';
+import { parseScore, timeline, accompaniment, transposeOf, slowed } from './score.js?v=32';
+import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=32';
+import { UtaLyrics } from './uta-lyrics.js?v=32';
+import { UtaMap } from './uta-map.js?v=32';
+import { initContrastToggle, contrastDebug } from './contrast.js?v=32';
+import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=32';
 
 // 音の切れ目は「両方」（すき間＋字を音の頭に。Gin、2026-11-04）。確かめ用：?cut=none|gap|char で、ほかの案に切り替える。
 // 下の歌詞のいまの字に下線を付ける（U3。Gin、2026-11-04）。確かめ用：?mark=0 で外す
@@ -26,6 +26,13 @@ const CLOCK = EXPORT || params.get('clock') === '1';
 const LAT = params.get('lat') || 'playback';
 const SR = Number(params.get('sr')) || 0;
 const SESSION = params.get('session') !== '0';
+// ?debug=1 のとき、音の仕組みの出来事を時刻つきで残す（鳴らなかったあと、一覧へ戻っても見られるように。Gin、11/7）
+const audioLog = [];
+function logAudio(msg) {
+  if (!DEBUG) return;
+  audioLog.push(`${(performance.now() / 1000).toFixed(1)}s ${msg}`);
+  if (audioLog.length > 14) audioLog.shift();
+}
 const WATCH_SEC = 1.5; // 押してからこの秒数たっても音の時計が進まなければ、伴奏なしで流す
 
 const SONGS = ['songs/furusato.txt', 'songs/haru_no_ogawa.txt'];
@@ -122,7 +129,12 @@ function getAudio() {
   const woke = ctx.state === 'running' ? Promise.resolve() : ctx.resume();
   const timeout = new Promise((_, ng) => setTimeout(() => ng(new Error('timeout')), WATCH_SEC * 1000));
   const ready = Promise.race([woke, timeout]);
-  if (DEBUG) ctx.onstatechange = () => { status.textContent = `音の仕組み：${ctx.state}`; };
+  if (DEBUG) {
+    logAudio(`作った state=${ctx.state} ${ctx.sampleRate}Hz session=${navigator.audioSession?.type ?? 'なし'}`);
+    woke.then(() => logAudio(`resume 済み state=${ctx.state}`), (e) => logAudio(`resume 失敗 ${e?.message ?? e}`));
+    ready.catch(() => logAudio(`起きるのを ${WATCH_SEC} 秒待ちきれなかった state=${ctx.state}`));
+    ctx.onstatechange = () => { logAudio(`state → ${ctx.state}`); status.textContent = `音の仕組み：${ctx.state}`; };
+  }
   return { ctx, ready };
 }
 
@@ -283,6 +295,7 @@ function start(score) {
 
 /** 伴奏を鳴らし始める。曲の頭の LEAD_SEC 前から数える（待ったあとも「まもなく始まります」から） */
 function beginAudio(c) {
+  logAudio(`鳴らし始め state=${c.audio.ctx.state} 時計=${c.audio.ctx.currentTime.toFixed(2)}`);
   c.audio.start(c.audio.ctx.currentTime + LEAD_SEC - c.from);
 }
 
@@ -341,6 +354,7 @@ function resume(c) {
     // 起きなければ、見張りが伴奏なしに切り替える
     c.lastMove = now;
     c.lastCt = undefined;
+    logAudio(`続ける state=${c.audio.ctx.state}`);
     c.audio.ctx.resume().catch(() => giveUp(c));
   } else {
     c.t0 = now - c.pausedT * 1000;
@@ -378,6 +392,7 @@ portraitQuery?.addEventListener?.('change', () => {
 /** 伴奏が始まらないとき：伴奏なしで、線と歌詞をいまの所から流し続け、どうすればよいかを出す */
 function giveUp(c) {
   if (current !== c || !c.audio) return;
+  logAudio(`伴奏なしに切り替え state=${c.audio.ctx.state} 時計=${c.audio.ctx.currentTime.toFixed(2)}`);
   const t = c.paused ? c.pausedT : c.audio.started ? c.audio.songTime() : c.from - LEAD_SEC;
   c.audio.stop();
   c.audio = null;
@@ -397,7 +412,7 @@ function tick() {
   }
   if (DEBUG && c.audio) {
     const x = c.audio.ctx;
-    status.textContent = `画面：${wakeLock ? '暗くしない' : 'ふつう'}　音の仕組み：${x.state}　時計：${x.currentTime.toFixed(1)} 秒　${x.sampleRate} Hz　遅れ ${((x.baseLatency || 0) * 1000).toFixed(1)}+${((x.outputLatency || 0) * 1000).toFixed(1)} ms　${LAT}${SESSION ? '' : '　session=0'}`;
+    status.textContent = `${lyricGapText()}画面：${wakeLock ? '暗くしない' : 'ふつう'}　音の仕組み：${x.state}　時計：${x.currentTime.toFixed(1)} 秒　${x.sampleRate} Hz　遅れ ${((x.baseLatency || 0) * 1000).toFixed(1)}+${((x.outputLatency || 0) * 1000).toFixed(1)} ms　${LAT}${SESSION ? '' : '　session=0'}　${audioLog.slice(-2).join('　')}`;
   }
   // 伴奏が鳴っていれば、伴奏の時計に合わせる（画面の時計とずれないように）
   // 伴奏が起きるのを待つあいだは、頭の少し前で止めておく
@@ -436,7 +451,40 @@ function back() {
   letSleep();
   playView.hidden = true;
   listView.hidden = false;
+  renderListDebug();
 }
+
+/** ?debug=1：歌詞のいまの行の字の下と、次の行のルビの上のすき間（px）。マイナスなら重なっている。0.5 秒ごとに測る */
+let gapAt = 0, gapText = '';
+function lyricGapText() {
+  const now = performance.now();
+  if (now - gapAt < 500) return gapText;
+  gapAt = now;
+  const a = document.querySelector('.lyric[data-pos="now"]'), b = document.querySelector('.lyric[data-pos="next"]');
+  if (!a || !b) { gapText = ''; return gapText; }
+  const bottom = Math.max(...[...a.querySelectorAll('.syl')].map((e) => e.getClientRects()[0]?.bottom ?? -Infinity));
+  const tops = [...b.querySelectorAll('rt, .syl')].map((e) => e.getClientRects()[0]?.top ?? Infinity);
+  gapText = `行の間 ${Math.round(Math.min(...tops) - bottom)}px　`;
+  return gapText;
+}
+
+/** ?debug=1：一覧の下に、白黒（くっきり）の決まりの材料と、音の仕組みの記録を出す（曲を始める前にも見られるように） */
+const debugInfo = document.getElementById('debug-info');
+function renderListDebug() {
+  if (!DEBUG || !debugInfo) return;
+  const c = contrastDebug();
+  debugInfo.hidden = false;
+  debugInfo.textContent = [
+    `localStorage oto-megane-contrast：${c.stored}`,
+    `matchMedia('(prefers-contrast: more)')：${c.contrastMore}`,
+    `matchMedia('(forced-colors: active)')：${c.forcedColors}`,
+    `data-contrast：${c.dataContrast}`,
+    `音の仕組み（いま）：${audioCtx?.state ?? 'まだ作っていない'}`,
+    '音の仕組みの記録：',
+    ...(audioLog.length ? audioLog : ['（まだない）']),
+  ].join('\n');
+}
+if (DEBUG) setInterval(() => { if (!listView.hidden) renderListDebug(); }, 1000);
 
 $('btn-back').addEventListener('click', back);
 $('btn-back-portrait').addEventListener('click', back);
@@ -455,4 +503,5 @@ loadSongs().then(() => {
 
 // 見やすさ：白黒（くっきり）の切り替え（T18）。色は曲を始めるときに読むので、一覧で替えれば次の曲から効く
 const contrastToggle = document.getElementById('contrast-toggle');
-if (contrastToggle) initContrastToggle(contrastToggle);
+if (contrastToggle) initContrastToggle(contrastToggle, renderListDebug);
+renderListDebug();

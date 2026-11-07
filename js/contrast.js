@@ -12,11 +12,33 @@ export function decideContrast(stored, auto) {
   return !!auto;
 }
 
+/**
+ * 切り替えを押したあとに覚える値。checked：押したあとの状態。auto：端末の設定が「くっきり」を求めているか。
+ * 端末の設定と同じなら null（覚えた値を消して「端末に合わせる」に戻す）。違うときだけ 'on'・'off' を覚える（Gin、11/7）
+ */
+export function nextStored(checked, auto) {
+  if (!!checked === !!auto) return null;
+  return checked ? 'on' : 'off';
+}
+
+/** ?debug=1 の表示用：覚えた値・端末の設定・いまの状態 */
+export function contrastDebug() {
+  const mq = (q) => { try { return String(window.matchMedia(q).matches); } catch (e) { return `読めない（${e.message}）`; } };
+  return {
+    stored: readStored() ?? 'なし',
+    contrastMore: mq('(prefers-contrast: more)'),
+    forcedColors: mq('(forced-colors: active)'),
+    dataContrast: document.documentElement.dataset.contrast ?? 'なし',
+  };
+}
+
 function readStored() {
   try { return localStorage.getItem(STORE_KEY); } catch { return null; }
 }
 function writeStored(v) {
-  try { localStorage.setItem(STORE_KEY, v); } catch { /* 覚えられなくても、いまの画面では効く */ }
+  try {
+    if (v === null) localStorage.removeItem(STORE_KEY); else localStorage.setItem(STORE_KEY, v);
+  } catch { /* 覚えられなくても、いまの画面では効く */ }
 }
 function autoWanted() {
   return AUTO_QUERIES.some((q) => { try { return window.matchMedia(q).matches; } catch { return false; } });
@@ -31,14 +53,15 @@ export function applyContrast() {
   return on;
 }
 
-/** 切り替え（チェック）をつなぐ。押したら覚える。端末の設定が替わったら、選んでいないときだけ合わせる */
-export function initContrastToggle(input) {
+/** 切り替え（チェック）をつなぐ。押したら覚える（端末の設定と違うときだけ）。端末の設定が替わったら、選んでいないときだけ合わせる */
+export function initContrastToggle(input, onChange = () => {}) {
   input.checked = applyContrast();
   input.addEventListener('change', () => {
-    writeStored(input.checked ? 'on' : 'off');
+    writeStored(nextStored(input.checked, autoWanted()));
     applyContrast();
+    onChange();
   });
   for (const q of AUTO_QUERIES) {
-    try { window.matchMedia(q).addEventListener('change', () => { input.checked = applyContrast(); }); } catch { /* 古いブラウザ */ }
+    try { window.matchMedia(q).addEventListener('change', () => { input.checked = applyContrast(); onChange(); }); } catch { /* 古いブラウザ */ }
   }
 }
