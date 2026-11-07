@@ -30,3 +30,17 @@ test('ふるさとは前奏のあいだ線がなく、1 番の頭から線が始
   const runs = lineRuns(timeline(s));
   assert.ok(Math.abs(runs[0][0].t - 4 * 3 * 60 / 80) < 1e-9); // 前奏 4 小節 × 3 拍 × 0.75 秒 = 9 秒
 });
+
+test('音の頭の光：0.4 秒で一度だけ広がって消える（点滅しない）', async () => {
+  const { glowAt, GLOW_SEC } = await import('../js/uta-line.js');
+  assert.equal(GLOW_SEC, 0.4);
+  assert.equal(glowAt(-0.01), null);
+  assert.equal(glowAt(0.4), null);
+  let prevR = 0, prevA = Infinity;
+  for (let s = 0; s < 0.4; s += 0.01) {
+    const g = glowAt(s);
+    assert.ok(g.r >= prevR && g.a <= prevA, '広がるだけ・薄くなるだけ');
+    assert.ok(g.a <= 0.6 && g.r <= 2.4, '小さく・淡く');
+    prevR = g.r; prevA = g.a;
+  }
+});

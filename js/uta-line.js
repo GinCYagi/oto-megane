@@ -6,6 +6,18 @@ export const NOW_AT = 1 / 3;   // 「いま」の位置（横幅の割合）
 const PAD_SEMI = 2;            // 音域の上下に足す半音の数
 const GLIDE_SEC = 0.06;        // つながった音と音のあいだを、斜めの短い線でつなぐ長さ
 const BASE_VEL = 85;           // mf。この強さのとき、太さは基準のまま
+export const GLOW_SEC = 0.4;   // 音の頭の小さな光が、広がって消えるまでの長さ（11/7 Gin）
+
+/**
+ * 音の頭の光の、出だしから age 秒での形。返り値：{ r（線の太さに対する半径の倍率）, a（濃さ 0〜1）} か null。
+ * 点滅させない：一度だけ、なめらかに薄くなる。濃さの最大は 0.6、広がりは線の太さの 0.8〜2.4 倍まで（小さく）。
+ */
+export function glowAt(age) {
+  if (!(age >= 0 && age < GLOW_SEC)) return null;
+  const x = age / GLOW_SEC;
+  const grow = 1 - (1 - x) ** 2;       // 始めに速く、あとはゆっくり広がる
+  return { r: 0.8 + 1.6 * grow, a: 0.6 * (1 - x) ** 2 };
+}
 
 /**
  * 歌の音に、楽譜の強弱（伴奏の右手に書いた mp・mf など）を付ける。声を入れる T6 までは、これで線の太さを決める。
@@ -128,6 +140,9 @@ export class UtaLine {
     this.cut = cut;
     this.runs = lineRuns(events, { gap: cut === 'gap' || cut === 'both' });
     this.heads = events.filter((e) => e.midi !== null && e.text && e.text !== 'ー');
+    // 音の頭の光を出す所（「ー」で伸ばす音は、前の字の続きなので出さない）
+    this.onsets = events.filter((e) => e.midi !== null && e.text !== 'ー');
+    this.calm = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.range = songRange(events);
     this.colors = { past: cssVar('--line'), future: cssVar('--future'), now: cssVar('--nowline'), bg: cssVar('--bg') };
     this.hues = hueColors();
@@ -188,6 +203,27 @@ export class UtaLine {
         if (x < -fs || x > w) continue;
         ctx.fillStyle = x <= nowX ? this.colors.past : this.colors.future;
         ctx.fillText(e.text, x, Y(e.midi) - lw);
+      }
+    }
+
+    // 音が始まった瞬間、線の頭で小さな丸い光が広がって消える（11/7 Gin。0.4 秒・一度だけ・小さく）。
+    // 字を塗っていく見せ方と点数は入れない（カラオケと違うことが伝わるように）。動きを減らす設定の端末では出さない
+    if (!this.calm) {
+      for (const e of this.onsets) {
+        const g = glowAt(t - e.t);
+        if (!g) { if (e.t > t) break; continue; }
+        const x = X(e.t), y = Y(e.midi), r = lw * g.r;
+        const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+        const c = this.hues[e.hue ?? 0]?.past || this.colors.past;
+        grad.addColorStop(0, this.colors.past); // 中心は生成り（線の色と重なっても光と分かるように）
+        grad.addColorStop(0.45, c);
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.globalAlpha = g.a;
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
       }
     }
 
