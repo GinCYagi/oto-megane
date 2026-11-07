@@ -1,10 +1,10 @@
 // 歌モード：曲の一覧 → 曲名を押す → 線が流れる。
 // T2b：伴奏を鳴らし、線と歌詞は伴奏の時計に合わせて流す。線の太さは楽譜の強弱（声を入れる T6 までの仮）。
-import { parseScore, timeline, accompaniment, transposeOf } from './score.js?v=23';
-import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=23';
-import { UtaLyrics } from './uta-lyrics.js?v=23';
-import { UtaMap } from './uta-map.js?v=23';
-import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=23';
+import { parseScore, timeline, accompaniment, transposeOf, slowed } from './score.js?v=24';
+import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=24';
+import { UtaLyrics } from './uta-lyrics.js?v=24';
+import { UtaMap } from './uta-map.js?v=24';
+import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=24';
 
 // 音の切れ目は「両方」（すき間＋字を音の頭に。Gin、2026-11-04）。確かめ用：?cut=none|gap|char で、ほかの案に切り替える。
 // 下の歌詞のいまの字に下線を付ける（U3。Gin、2026-11-04）。確かめ用：?mark=0 で外す
@@ -166,8 +166,21 @@ async function loadSongs() {
         label.append(orig, `元の本の高さ（${score.meta['元の調']}）で鳴らす`);
         li.append(label);
       }
-      b.addEventListener('click', () => start(orig?.checked ? originalKey(score) : score));
-      if (EXPORT) li.append(exportButton(() => (orig?.checked ? originalKey(score) : score)));
+      // ゆっくり（4 分の 3 の速さ）。どの曲にも一つ。ふだんは元の速さ
+      const slowLabel = document.createElement('label');
+      slowLabel.className = 'key-choice';
+      const slow = document.createElement('input');
+      slow.type = 'checkbox';
+      const slowText = document.createElement('span');
+      slowText.innerHTML = 'ゆっくり（4<ruby>分<rt>ぶん</rt></ruby>の3の<ruby>速<rt>はや</rt></ruby>さ）';
+      slowLabel.append(slow, slowText);
+      li.append(slowLabel);
+      const chosen = () => {
+        const sc = orig?.checked ? originalKey(score) : score;
+        return slow.checked ? slowed(sc) : sc;
+      };
+      b.addEventListener('click', () => start(chosen()));
+      if (EXPORT) li.append(exportButton(chosen));
       list.append(li);
     } catch (e) {
       $('list-status').textContent = `${file} を読めませんでした（${e.message}）`;
@@ -197,7 +210,7 @@ function exportButton(getScore) {
       const a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }));
       const key = score.keyNote ? '_元の調' : '';
-      a.download = `${score.title}${key}${withMelody ? '' : '_伴奏のみ'}.wav`;
+      a.download = `${score.title}${key}${score.slow ? '_ゆっくり' : ''}${withMelody ? '' : '_伴奏のみ'}.wav`;
       document.body.append(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 60000);
       st.textContent = `${a.download} を保存しました（${buf.sampleRate} Hz・${buf.duration.toFixed(1)} 秒。曲の 0 秒はファイルの ${EXPORT_HEAD_SEC} 秒目）`;
@@ -223,7 +236,7 @@ function start(score) {
   listView.hidden = true;
   playView.hidden = false;
   $('play-title').textContent = score.title;
-  $('play-note').textContent = [score.meta['添え書き'], score.keyNote].filter(Boolean).join('　');
+  $('play-note').textContent = [score.meta['添え書き'], score.keyNote, score.slow ? 'ゆっくり' : ''].filter(Boolean).join('　');
   status.textContent = '';
   cue.textContent = 'まもなく始まります';
   clock.hidden = !CLOCK;

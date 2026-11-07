@@ -134,3 +134,23 @@ test('行ごとの色：となり合う行は違う色、同じ行は同じ色�
   const { hueSpans } = await import('../js/uta-map.js');
   assert.deepEqual(hueSpans(ev, 7), [{ t0: 0, t1: 2, hue: 0 }, { t0: 2, t1: 4, hue: 1 }, { t0: 4, t1: 5, hue: 2 }, { t0: 5, t1: 7, hue: 0 }]);
 });
+
+test('ゆっくり：速さに 0.75 を掛け、時刻はすべて 4/3 倍、高さは同じ（だんだん遅くも同じ割合）', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { parseScore, timeline, accompaniment, slowed } = await import('../js/score.js');
+  const score = parseScore(readFileSync(new URL('../songs/furusato.txt', import.meta.url), 'utf8'));
+  const slow = slowed(score);
+  assert.equal(Number(slow.meta['速さ']), 60);
+  assert.equal(slow.slow, true);
+  const a = timeline(score), b = timeline(slow);
+  assert.equal(a.length, b.length);
+  for (let i = 0; i < a.length; i++) {
+    assert.ok(Math.abs(b[i].t - a[i].t * 4 / 3) < 1e-6);
+    assert.equal(b[i].midi, a[i].midi);
+  }
+  const x = accompaniment(score), y = accompaniment(slow);
+  const end = (ev) => Math.max(...ev.map((e) => e.t + e.dur));
+  assert.ok(Math.abs(end(y) - end(x) * 4 / 3) < 1e-6); // 後奏の「だんだん遅く」も同じ割合
+  assert.deepEqual(y.map((e) => e.midis), x.map((e) => e.midis));
+  assert.equal(score.meta['速さ'], '80'); // 元の楽譜は変えない
+});

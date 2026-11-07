@@ -24,6 +24,8 @@
 }
 /* 高さの切り替え（ふるさとだけ）。曲名のボタンの下に小さく。触りやすいよう、行の高さは 44px 以上 */
 .key-choice { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 4px 8px; color: var(--muted); font-size: 1.2rem; cursor: pointer; }
+.song-list li { display: flex; flex-wrap: wrap; align-items: center; column-gap: 20px; }
+.key-choice rt { font-size: 0.5em; }
 .key-choice input { width: 28px; height: 28px; accent-color: var(--text); }
 /* 書き出し（?export=1 のときだけ出る。デモ動画の音を作るため） */
 .export-button { margin-top: 6px; min-height: 48px; font-size: 1.1rem; }

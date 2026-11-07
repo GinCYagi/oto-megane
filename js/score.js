@@ -353,6 +353,16 @@ export function timeline(score) {
 }
 
 /** 「移調:」の半音の数（書いていなければ 0） */
+/**
+ * ゆっくりモード（Gin、2026-11-07「速くて追えない、と言うケースも想定できるので」）。
+ * 「速さ:」に rate（既定 0.75）を掛けた写しを返す。音の高さ・音色は変えない。
+ * 時刻はすべて「速さ:」から計算するので、線の流れ・曲の時計・地図の帯・「だんだん遅く」も同じ速さに従う。
+ */
+export const SLOW_RATE = 0.75;
+export function slowed(score, rate = SLOW_RATE) {
+  return { ...score, meta: { ...score.meta, '速さ': String(Number(score.meta['速さ']) * rate) }, slow: true };
+}
+
 export function transposeOf(score) {
   const v = Number(score.meta['移調'] ?? 0);
   return Number.isInteger(v) ? v : 0;
