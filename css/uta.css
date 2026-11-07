@@ -104,10 +104,11 @@
 .lyric[data-pos="later"] { transform: translateY(3.2em) scale(0.62); opacity: 0; }
 .lyric rt { font-size: 0.42em; color: var(--muted); letter-spacing: 0; }
 .lyric .gap { display: inline-block; width: 0.6em; }
-/* 間奏・後奏の見出し（Gin、11/7）。括弧は付けず、歌詞より少し小さく（0.8 倍）、色は薄め。白黒でも、大きさと明るさで歌詞と分かる */
-.lyric.label .label-text { font-size: 0.8em; letter-spacing: 0.2em; }
+/* 間奏・後奏の見出し「（間奏）」（Gin、11/7）。字の大きさは歌詞と同じ（同じ場所に同時には出ないので、差は見えない）。
+   区別は括弧（声に出さない補足の約束）と薄い色で付ける。ルビは 2 字だけに、均等割り付けにしない */
 .lyric.label[data-pos="now"], .lyric.label[data-pos="next"] { color: var(--label); }
 .lyric.label rt { color: var(--label); }
+.lyric.label ruby { ruby-align: center; } /* ルビは割り付けず、2 字の真ん中に寄せる（ruby-align は Baseline 2024、MDN） */
 /* いまの字に下線（U3。形で示す。色だけに頼らない） */
 .syl.now-char { text-decoration: underline; text-decoration-thickness: 0.08em; text-underline-offset: 0.18em; }
 /* 困ったときの知らせ（伴奏が始まらない など）と ?debug=1。線の段の上の端に、地の色の帯で（位置は JS で線の段に合わせる。歌詞にかぶらないように、11/7） */

@@ -1,6 +1,6 @@
 // 歌モードの歌詞。線の下に、いまの行を大きく、次の行を小さく暗めに出す。
 // 行が替わるときは、次の行がいまの行の場所へ上がるだけにする（明るさを急に変えない）。
-import { HOLD } from './score.js?v=36';
+import { HOLD } from './score.js?v=37';
 
 const NEXT_SCALE = 0.62; // 次の行の大きさ（css/uta.css の .lyric[data-pos="next"] の scale と同じ）
 const LEAD_SEC = 0.6; // 次の行の頭のこれだけ前に、行を替える（前の行が終わっていれば）
@@ -45,7 +45,11 @@ export function segOfSyllables(syl, segs) {
   return out;
 }
 
-/** 間奏・後奏の見出し（括弧は付けない。歌詞より少し小さく、薄く出す。Gin、2026-11-07） */
+/**
+ * 間奏・後奏の見出し。全角の括弧で囲んで「（間奏）」「（後奏）」と出す（Gin、2026-11-07）。
+ * 括弧の中は「声に出さない補足」という、ふだんの文の約束があるので、色や大きさに頼らず「ここは歌わない」と伝わる。
+ * ルビは「間奏」「後奏」の 2 字だけに振る（括弧には振らない）。字の大きさは歌詞と同じ、色は薄め（css の .lyric.label）。
+ */
 export const BREAK_LABEL = { interlude: { text: '間奏', ruby: 'かんそう' }, outro: { text: '後奏', ruby: 'こうそう' } };
 
 /**
@@ -97,13 +101,13 @@ export class UtaLyrics {
       const p = document.createElement('p');
       p.className = 'lyric';
       if (ln.label) {
-        // 間奏・後奏の見出し。字は歌詞より少し小さく、色は薄め（css の .lyric.label）
+        // 間奏・後奏の見出し「（間奏）」。字は歌詞と同じ大きさ、色は薄め（css の .lyric.label）
         p.classList.add('label');
         const r = document.createElement('ruby');
         r.className = 'label-text';
         r.append(ln.text);
         const rt = document.createElement('rt'); rt.textContent = ln.ruby; r.append(rt);
-        p.append(r);
+        p.append('（', r, '）');
         ln.spans = [];
         return p;
       }
@@ -171,6 +175,12 @@ export class UtaLyrics {
     const nowY = top + A;
     box.style.setProperty('--now-y', `${nowY}px`);
     box.style.setProperty('--next-y', `${nowY + B + gap + A * NEXT_SCALE}px`);
+  }
+
+  /** 曲が終わって「おしまい」の札が出たら、残っている「（後奏）」を消す（Gin、11/7） */
+  finish() {
+    this.cur = this.lines.length;
+    [...this.box.children].forEach((p) => { p.dataset.pos = 'past'; });
   }
 
   update(t) {

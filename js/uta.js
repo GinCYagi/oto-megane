@@ -1,11 +1,11 @@
 // 歌モード：曲の一覧 → 曲名を押す → 線が流れる。
 // T2b：伴奏を鳴らし、線と歌詞は伴奏の時計に合わせて流す。線の太さは楽譜の強弱（声を入れる T6 までの仮）。
-import { parseScore, timeline, accompaniment, transposeOf, slowed, instrumentalSpans } from './score.js?v=36';
-import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=36';
-import { UtaLyrics } from './uta-lyrics.js?v=36';
-import { UtaMap } from './uta-map.js?v=36';
-import { initContrastToggle, contrastDebug } from './contrast.js?v=36';
-import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=36';
+import { parseScore, timeline, accompaniment, transposeOf, slowed, instrumentalSpans } from './score.js?v=37';
+import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=37';
+import { UtaLyrics } from './uta-lyrics.js?v=37';
+import { UtaMap } from './uta-map.js?v=37';
+import { initContrastToggle, contrastDebug } from './contrast.js?v=37';
+import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=37';
 
 // 音の切れ目は「両方」（すき間＋字を音の頭に。Gin、2026-11-04）。確かめ用：?cut=none|gap|char で、ほかの案に切り替える。
 // 下の歌詞のいまの字に下線を付ける（U3。Gin、2026-11-04）。確かめ用：?mark=0 で外す
@@ -443,6 +443,7 @@ function tick() {
     // おしまい：数秒たつと、一覧に戻る（4 章の手順 4）
     c.done = true;
     cue.textContent = 'おしまい';
+    c.lyrics.finish(); // 下に残る「（後奏）」は消す
     c.audio?.stop();
     letSleep();
     setTimeout(() => { if (current === c) back(); }, END_BACK_SEC * 1000);

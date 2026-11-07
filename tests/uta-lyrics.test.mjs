@@ -75,7 +75,7 @@ test('間奏・後奏：構成の位置で決まり、見出しがいまの行�
   const L = withBreaks(lyricLines(timeline(haru)), instrumentalSpans(haru));
   const k = L.findIndex((l) => l.label === 'interlude');
   const prev = L[k - 1], next = L[k + 1];
-  assert.equal(L[k].text, '間奏');
+  assert.equal(L[k].text, '間奏'); // 括弧「（）」は画面で付ける（ルビを 2 字だけに振るため）
   assert.equal(lineAt(L, prev.t1 - 0.05), k - 1);    // 歌っているあいだは、その行
   assert.equal(lineAt(L, prev.t1 + 0.05), k);        // 主旋律の音が終わったら「間奏」
   assert.equal(next.verse, prev.verse + 1);          // 次の行は、次の番の最初の行
