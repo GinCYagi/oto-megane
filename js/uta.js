@@ -1,11 +1,11 @@
 // 歌モード：曲の一覧 → 曲名を押す → 線が流れる。
 // T2b：伴奏を鳴らし、線と歌詞は伴奏の時計に合わせて流す。線の太さは楽譜の強弱（声を入れる T6 までの仮）。
-import { parseScore, timeline, accompaniment, transposeOf, slowed, instrumentalSpans } from './score.js?v=38';
-import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=38';
-import { UtaLyrics } from './uta-lyrics.js?v=38';
-import { UtaMap } from './uta-map.js?v=38';
-import { initContrastToggle, contrastDebug } from './contrast.js?v=38';
-import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=38';
+import { parseScore, timeline, accompaniment, transposeOf, slowed, instrumentalSpans } from './score.js?v=39';
+import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=39';
+import { UtaLyrics } from './uta-lyrics.js?v=39';
+import { UtaMap } from './uta-map.js?v=39';
+import { initContrastToggle, contrastDebug } from './contrast.js?v=39';
+import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=39';
 
 // 音の切れ目は「両方」（すき間＋字を音の頭に。Gin、2026-11-04）。確かめ用：?cut=none|gap|char で、ほかの案に切り替える。
 // 下の歌詞のいまの字に下線を付ける（U3。Gin、2026-11-04）。確かめ用：?mark=0 で外す
@@ -16,6 +16,8 @@ const MARK = params.get('mark') !== '0';
 const MELODY = params.get('melody') !== '0';
 // 確かめ用：?debug=1 で、画面の下に音の仕組みの状態を出す（iPhone の手元で、何が起きているかを見るため）
 const DEBUG = params.get('debug') === '1';
+// 確かめ用：?minfs=px で、1 行に替える字の大きさ（ONE_ROW_BELOW_PX）を試す
+const MINFS = Number(params.get('minfs')) || 0;
 // 書き出し：?export=1 で、一覧の曲ごとに「音を WAV で保存」を出す（デモ動画の音を、画面とは別に作るため。Gin、2026-11-05）
 const EXPORT = params.get('export') === '1';
 // 曲の時計：?clock=1（または ?export=1）で、画面の下に曲の何秒目かを出す。始まる前は「まもなく」、曲の 0 秒で「0 秒」に変わる。
@@ -262,7 +264,7 @@ function start(score) {
   clock.textContent = CLOCK ? 'まもなく' : '';
   const line = new UtaLine(canvas, events, { cut: CUT });
   line.fit();
-  const lyrics = new UtaLyrics($('lyrics'), events, { markNow: MARK, score, spans: instrumentalSpans(score) });
+  const lyrics = new UtaLyrics($('lyrics'), events, { markNow: MARK, score, spans: instrumentalSpans(score), ...(MINFS ? { oneRowBelow: MINFS } : {}) });
   const map = new UtaMap($('uta-map'), events, Math.max(...ends), acc);
   map.fit();
   lyrics.fit();
@@ -474,7 +476,9 @@ function lyricGapText() {
   if (!a || !b) { gapText = ''; return gapText; }
   const bottom = Math.max(...[...a.querySelectorAll('.syl')].map((e) => e.getClientRects()[0]?.bottom ?? -Infinity));
   const tops = [...b.querySelectorAll('rt, .syl')].map((e) => e.getClientRects()[0]?.top ?? Infinity);
-  gapText = `行の間 ${Math.round(Math.min(...tops) - bottom)}px　`;
+  const f = current?.lyrics.fitInfo;
+  const rowsText = f ? `歌詞 ${f.rows} 行・字 ${f.fs}px（2 行なら ${f.fs2}px・1 行なら ${f.fs1}px、欄の高さ ${f.H}px・画面 ${innerWidth}×${innerHeight}）　` : '';
+  gapText = `${rowsText}行の間 ${Math.round(Math.min(...tops) - bottom)}px　`;
   return gapText;
 }
 

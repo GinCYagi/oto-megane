@@ -1,8 +1,12 @@
 // 歌モードの歌詞。線の下に、いまの行を大きく、次の行を小さく暗めに出す。
 // 行が替わるときは、次の行がいまの行の場所へ上がるだけにする（明るさを急に変えない）。
-import { HOLD } from './score.js?v=38';
+import { HOLD } from './score.js?v=39';
 
 const NEXT_SCALE = 0.62; // 次の行の大きさ（css/uta.css の .lyric[data-pos="next"] の scale と同じ）
+// 縦の幅が足りないとき（ツールバーありの横など）は、次の行を出さず、いまの行だけを大きく出す（Gin、11/7）。
+// 2 行にすると、いまの行の字がこれより小さくなるときだけ 1 行にする（仮の値。実際の数字を見て Gin と決める）
+export const ONE_ROW_BELOW_PX = 24;
+const ONE_ROW_MAX_PX = 112; // 1 行のときの字の上限（7rem）
 const LEAD_SEC = 0.6; // 次の行の頭のこれだけ前に、行を替える（前の行が終わっていれば）
 
 /**
@@ -91,8 +95,9 @@ export function charAt(line, t) {
 
 export class UtaLyrics {
   /** score を渡すと、「字:」（漢字＋ルビ）で出す。なければ音ごとの字（詞）で出す */
-  constructor(box, events, { markNow = false, score = null, spans = [] } = {}) {
+  constructor(box, events, { markNow = false, score = null, spans = [], oneRowBelow = ONE_ROW_BELOW_PX } = {}) {
     this.box = box;
+    this.oneRowBelow = oneRowBelow;
     this.lines = withBreaks(lyricLines(events), spans);
     this.markNow = markNow;
     this.cur = -1;
@@ -149,32 +154,46 @@ export class UtaLyrics {
     const ps = [...box.children];
     if (!H || !ps.length) return;
     box.style.removeProperty('--lyric-fs');
-    // 行ごとに、行の箱の上にはみ出す分（ルビ）A と、箱の上から字の下までの B を測る（縮めて置いた行も、元の大きさに直して）
+    // 行ごとに、行の箱の上にはみ出す分（ルビ）A と、箱の上から字の下までの B、字の幅 Wd を測る（縮めて置いた行も、元の大きさに直して）
     const measure = () => {
-      let A = 0, B = 0;
+      let A = 0, B = 0, Wd = 0;
       for (const p of ps) {
         const pr = p.getBoundingClientRect();
         const k = pr.height / (p.offsetHeight || 1) || 1;
-        let top = pr.top, bottom = pr.bottom;
-        for (const e of p.querySelectorAll('rt, .syl')) {
-          for (const r of e.getClientRects()) { top = Math.min(top, r.top); bottom = Math.max(bottom, r.bottom); }
+        let top = pr.top, bottom = pr.bottom, left = Infinity, right = -Infinity;
+        for (const e of p.querySelectorAll('rt, .syl, ruby')) {
+          for (const r of e.getClientRects()) {
+            top = Math.min(top, r.top); bottom = Math.max(bottom, r.bottom);
+            left = Math.min(left, r.left); right = Math.max(right, r.right);
+          }
         }
         A = Math.max(A, (pr.top - top) / k);
         B = Math.max(B, (bottom - pr.top) / k);
+        if (right > left) Wd = Math.max(Wd, (right - left) / k);
       }
-      return { A, B };
+      return { A, B, Wd };
     };
-    let { A, B } = measure();
+    let { A, B, Wd } = measure();
+    const css = parseFloat(getComputedStyle(ps[0]).fontSize); // CSS の決めた大きさ（2 行のための大きさ）
     const top = H * 0.02, gap = Math.max(6, H * 0.06);
+    // 2 行にしたときの字の大きさ
     const need = top + (A + B) * (1 + NEXT_SCALE) + gap;
-    if (need > H) {
-      const fs = parseFloat(getComputedStyle(ps[0]).fontSize);
-      box.style.setProperty('--lyric-fs', `${Math.floor(fs * (H - top - gap) / ((A + B) * (1 + NEXT_SCALE)))}px`);
+    const fs2 = need > H ? Math.floor(css * (H - top - gap) / ((A + B) * (1 + NEXT_SCALE))) : css;
+    // 1 行にしたときの字の大きさ（上下に top を残して高さいっぱい。横は欄の幅の 96% まで。大きくしすぎない上限つき）
+    const fs1 = Math.floor(Math.min(css * (H - 2 * top) / (A + B), Wd ? css * box.clientWidth * 0.96 / Wd : Infinity, ONE_ROW_MAX_PX));
+    // 2 行だと、いまの行の字が ONE_ROW_BELOW_PX より小さくなるときだけ 1 行にする（ツールバーの有無ではなく、欄の高さで決める。Gin、11/7）
+    const rows = fs2 < this.oneRowBelow && fs1 > fs2 ? 1 : 2;
+    const fs = rows === 1 ? fs1 : fs2;
+    box.dataset.rows = rows;
+    if (fs !== css) {
+      box.style.setProperty('--lyric-fs', `${fs}px`);
       ({ A, B } = measure());
     }
     const nowY = top + A;
     box.style.setProperty('--now-y', `${nowY}px`);
     box.style.setProperty('--next-y', `${nowY + B + gap + A * NEXT_SCALE}px`);
+    this.fitInfo = { H, fs2, fs1, rows, fs };
+    box.dataset.fit = `${fs2}/${fs1}`; // 確かめ用（2 行のとき／1 行のときの字の px）
   }
 
   /** 曲が終わって「おしまい」の札が出たら、残っている「（後奏）」を消す（Gin、11/7） */
