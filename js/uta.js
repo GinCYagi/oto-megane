@@ -1,11 +1,11 @@
 // 歌モード：曲の一覧 → 曲名を押す → 線が流れる。
 // T2b：伴奏を鳴らし、線と歌詞は伴奏の時計に合わせて流す。線の太さは楽譜の強弱（声を入れる T6 までの仮）。
-import { parseScore, timeline, accompaniment, transposeOf, slowed, instrumentalSpans } from './score.js?v=39';
-import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=39';
-import { UtaLyrics } from './uta-lyrics.js?v=39';
-import { UtaMap } from './uta-map.js?v=39';
-import { initContrastToggle, contrastDebug } from './contrast.js?v=39';
-import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=39';
+import { parseScore, timeline, accompaniment, transposeOf, slowed, instrumentalSpans } from './score.js?v=40';
+import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=40';
+import { UtaLyrics } from './uta-lyrics.js?v=40';
+import { UtaMap } from './uta-map.js?v=40';
+import { initContrastToggle, contrastDebug } from './contrast.js?v=40';
+import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=40';
 
 // 音の切れ目は「両方」（すき間＋字を音の頭に。Gin、2026-11-04）。確かめ用：?cut=none|gap|char で、ほかの案に切り替える。
 // 下の歌詞のいまの字に下線を付ける（U3。Gin、2026-11-04）。確かめ用：?mark=0 で外す
@@ -473,12 +473,15 @@ function lyricGapText() {
   if (now - gapAt < 500) return gapText;
   gapAt = now;
   const a = document.querySelector('.lyric[data-pos="now"]'), b = document.querySelector('.lyric[data-pos="next"]');
-  if (!a || !b) { gapText = ''; return gapText; }
+  if (!a) { gapText = ''; return gapText; }
   const bottom = Math.max(...[...a.querySelectorAll('.syl')].map((e) => e.getClientRects()[0]?.bottom ?? -Infinity));
-  const tops = [...b.querySelectorAll('rt, .syl')].map((e) => e.getClientRects()[0]?.top ?? Infinity);
+  const tops = b ? [...b.querySelectorAll('rt, .syl')].map((e) => e.getClientRects()[0]?.top ?? Infinity) : [];
   const f = current?.lyrics.fitInfo;
-  const rowsText = f ? `歌詞 ${f.rows} 行・字 ${f.fs}px（2 行なら ${f.fs2}px・1 行なら ${f.fs1}px、欄の高さ ${f.H}px・画面 ${innerWidth}×${innerHeight}）　` : '';
-  gapText = `${rowsText}行の間 ${Math.round(Math.min(...tops) - bottom)}px　`;
+  const px = (v) => `${Math.round(v * 10) / 10}px`;
+  const rowsText = f ? `歌詞 ${f.rows} 行・字 ${px(f.fs)}（2 行なら ${px(f.fs2)}・1 行なら ${px(f.fs1)}、1 行にするのは 2 行で ${current.lyrics.oneRowBelow}px 未満、欄の高さ ${f.H}px・画面 ${innerWidth}×${innerHeight}）　` : '';
+  // 次の行がない（後奏のあいだなど）か、字がまだ並んでいないときは「—」
+  const g = Math.min(...tops) - bottom;
+  gapText = `${rowsText}行の間 ${Number.isFinite(g) ? `${Math.round(g)}px` : '—'}　`;
   return gapText;
 }
 
