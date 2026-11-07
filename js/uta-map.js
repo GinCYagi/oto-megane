@@ -1,22 +1,23 @@
-import { hueColors } from './uta-line.js?v=25';
+import { hueColors } from './uta-line.js?v=26';
 
 // 地図の帯（T4）：画面の上の細い帯に、曲全体を山脈の形で描き、いまの位置に印を付ける。
 // 帯の山は「大きさ」だけを表す。音の高さは起伏に入れない（Gin、2026-11-07）。
-// - 手前：旋律の一本の稜線。音ごとに、出だしで高く、伸ばすと少し下がる。休みでは谷に下りる。
+// - 手前：旋律の一本の稜線。音ごとに、出だしで高く、伸ばすと下がる。隣の音どうしはなめらかにつなぎ（峰が連なる）、休みでは谷に下りる。
 //   楽譜の強弱（mp・mf など）は、全体の高さの係数にする。
 // - 奥：伴奏。そのとき同時に鳴っている音の数と強さで高さを決める。手前より暗く淡く描く。
 // 計算は楽譜から（開いた瞬間に済む）。盛り上がりは山の高さで、終わりの近さは帯の右端までの距離で分かる。
 
-const ATTACK_SEC = 0.06;  // 出だしの立ち上がり
-const SETTLE_SEC = 0.5;   // 伸ばすと下がっていく速さ
-const HOLD_LEVEL = 0.3;   // 伸ばしきった所の高さ（出だしを 1 として）
+const ATTACK_SEC = 0.22;  // 出だしの立ち上がり（なだらかに。11/7 Gin「鋸の歯に見える」）
+const SETTLE_SEC = 0.35;  // 伸ばすと下がっていく速さ
+const HOLD_LEVEL = 0.05;  // 伸ばしきった所の高さ（出だしを 1 として）
+const RIDGE_SMOOTH_SEC = 0.22; // 隣の音どうしを、なめらかにつなぐ幅（ガウスのぼかしの σ）
 const FALL_SEC = 0.12;    // 音が終わって谷へ下りる長さ
 const ACC_SETTLE_SEC = 0.8;
 
 /** 一つの音の、出だしからの経過 s 秒での高さ（0〜1）。dur：音の長さ */
 export function noteShape(s, dur) {
   if (s < 0) return 0;
-  if (s < ATTACK_SEC) return s / ATTACK_SEC;
+  if (s < ATTACK_SEC) { const x = s / ATTACK_SEC; return x * x * (3 - 2 * x); } // なめらかに立ち上がる
   if (s <= dur) return HOLD_LEVEL + (1 - HOLD_LEVEL) * Math.exp(-(s - ATTACK_SEC) / SETTLE_SEC);
   const atEnd = noteShape(dur, dur);
   return s < dur + FALL_SEC ? atEnd * (1 - (s - dur) / FALL_SEC) : 0;
@@ -76,15 +77,25 @@ export function accProfile(acc, end, bins = 240) {
   return out;
 }
 
-/** となりの数画素と混ぜて、山の角を丸める（谷の 0 は 0 のまま残す） */
-function soften(p) {
-  const k = [0.1, 0.2, 0.4, 0.2, 0.1];
-  const out = new Float32Array(p.length);
-  for (let i = 0; i < p.length; i++) {
+/**
+ * 稜線を、時間の幅 sigmaSec でぼかし、隣の音の峰をなめらかにつなぐ。休みの谷（0）は 0 のまま残す。
+ */
+export function smoothRidge(p, end, sigmaSec = RIDGE_SMOOTH_SEC) {
+  const n = p.length;
+  const sb = (sigmaSec / end) * n;
+  if (!(sb > 0.3)) return p;
+  const r = Math.ceil(sb * 2.5);
+  const k = Array.from({ length: 2 * r + 1 }, (_, j) => Math.exp(-((j - r) ** 2) / (2 * sb * sb)));
+  const out = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
     if (!p[i]) continue;
-    let s = 0;
-    for (let j = -2; j <= 2; j++) s += k[j + 2] * (p[Math.min(p.length - 1, Math.max(0, i + j))]);
-    out[i] = s;
+    let s = 0, w = 0;
+    for (let j = -r; j <= r; j++) {
+      const q = i + j;
+      if (q < 0 || q >= n) continue;
+      s += k[j + r] * p[q]; w += k[j + r];
+    }
+    out[i] = s / w;
   }
   return out;
 }
@@ -142,9 +153,9 @@ export class UtaMap {
       this.back = accProfile(this.acc, this.end, bins);
     }
     // 奥（伴奏）は帯の高さいっぱいまで、手前（旋律）は 9 割まで（奥の峰が手前の稜線の上にのぞくように）。
-    // 奥は角が立ちすぎないよう 1〜2 画素ぶんならす。手前は音ごとの峰が消えないよう、ならさない
-    this.backPath = this.pathOf(soften(this.back), 1);
-    this.frontPath = this.pathOf(this.front, 0.9);
+    // 奥は角が立ちすぎないよう 1〜2 画素ぶんならす。手前は時間の幅でぼかし、峰を連ねる（谷は残す）
+    this.backPath = this.pathOf(smoothRidge(this.back, this.end, 0.3), 1);
+    this.frontPath = this.pathOf(smoothRidge(this.front, this.end), 0.9);
   }
 
   /** 左（過ぎた所）と右（この先）で色を変えて塗る */
