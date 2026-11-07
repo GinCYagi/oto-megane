@@ -1,11 +1,11 @@
 // 歌モード：曲の一覧 → 曲名を押す → 線が流れる。
 // T2b：伴奏を鳴らし、線と歌詞は伴奏の時計に合わせて流す。線の太さは楽譜の強弱（声を入れる T6 までの仮）。
-import { parseScore, timeline, accompaniment, transposeOf, slowed, instrumentalSpans } from './score.js?v=43';
-import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=43';
-import { UtaLyrics } from './uta-lyrics.js?v=43';
-import { UtaMap } from './uta-map.js?v=43';
-import { initContrastToggle, contrastDebug } from './contrast.js?v=43';
-import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=43';
+import { parseScore, timeline, accompaniment, transposeOf, slowed, instrumentalSpans } from './score.js?v=44';
+import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=44';
+import { UtaLyrics } from './uta-lyrics.js?v=44';
+import { UtaMap } from './uta-map.js?v=44';
+import { initContrastToggle, contrastDebug } from './contrast.js?v=44';
+import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=44';
 
 // 音の切れ目は「両方」（すき間＋字を音の頭に。Gin、2026-11-04）。確かめ用：?cut=none|gap|char で、ほかの案に切り替える。
 // 下の歌詞のいまの字に下線を付ける（U3。Gin、2026-11-04）。確かめ用：?mark=0 で外す
@@ -72,14 +72,13 @@ function enterFullscreen() {
 }
 const isFullscreen = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
 /**
- * 裏に回る前が全画面だったか。Android の Chrome は、ほかのアプリへ移ると全画面を解除する。
- * 解除の知らせが、見えなくなる知らせより少し先に来ることがあるので、直前（1.5 秒以内）の解除も「全画面だった」に数える
+ * 全画面で始められた曲は、裏から戻って「触ると続きから」を押したとき、全画面に入り直す（Gin、11/7）。
+ * Android の Chrome は、アプリの切り替えの画面や上からの引き下ろしのあいだに全画面を解除し、ページが裏に回るまで
+ * 1.5 秒以上かかることがあるので、時間の幅では決めない。入れたら current.wantFullscreen を立て、一覧へ戻る・おしまいで下ろす
  */
-let fsExitAt = -Infinity;
-function onFullscreenChange() { if (!isFullscreen()) fsExitAt = performance.now(); }
+function onFullscreenChange() { if (isFullscreen() && current && !current.done) current.wantFullscreen = true; }
 document.addEventListener('fullscreenchange', onFullscreenChange);
 document.addEventListener('webkitfullscreenchange', onFullscreenChange);
-const wasFullscreenJustNow = () => isFullscreen() || performance.now() - fsExitAt < 1500;
 function exitFullscreen() {
   if (!(document.fullscreenElement || document.webkitFullscreenElement)) return;
   const exit = document.exitFullscreen || document.webkitExitFullscreen;
@@ -107,11 +106,7 @@ function letSleep() {
 document.addEventListener('visibilitychange', () => {
   const c = current;
   if (!c || c.done) return;
-  if (document.visibilityState === 'hidden') {
-    if (!c.paused || c.why !== 'hidden') c.fsBeforeHidden = wasFullscreenJustNow(); // 戻って触ったとき、全画面に入り直すか
-    pause(c, 'hidden');
-    return;
-  }
+  if (document.visibilityState === 'hidden') { pause(c, 'hidden'); return; }
   relayoutSoon(); // 裏にいるあいだに全画面・ツールバーが替わっても、resize を受け取れていないことがある（OnePlus 6、11/7）
   keepAwake(); // 画面を暗くしない約束は、見えなくなると外れるので頼み直す
   if (c.paused && c.why === 'hidden') cue.textContent = PAUSE_TEXT.hidden;
@@ -287,6 +282,7 @@ function start(score) {
   const firstSing = events.find((e) => e.midi !== null)?.t ?? 0;
   current = { line, lyrics, audio: null, end: Math.max(...ends), t0: performance.now() + LEAD_SEC * 1000, map, raf: 0, howUntil: firstSing - HOW_UNTIL_SEC };
   placeHowCard();
+  if (isFullscreen()) current.wantFullscreen = true; // もう全画面のまま始めた（知らせが来ない）
   // 確かめ用：?t=秒 で、その時刻の絵で止める（写しを撮るため。音は鳴らさない）
   const at = Number(params.get('t'));
   if (at >= 0 && params.has('t')) { cue.textContent = ''; line.draw(at); lyrics.update(at); showHow(current, at); map.draw(at); return; }
@@ -441,7 +437,7 @@ function tick() {
   }
   if (DEBUG && c.audio) {
     const x = c.audio.ctx;
-    status.textContent = `${lyricGapText()}画面：${wakeLock ? '暗くしない' : 'ふつう'}　音の仕組み：${x.state}　時計：${x.currentTime.toFixed(1)} 秒　${x.sampleRate} Hz　遅れ ${((x.baseLatency || 0) * 1000).toFixed(1)}+${((x.outputLatency || 0) * 1000).toFixed(1)} ms　${LAT}${SESSION ? '' : '　session=0'}　${audioLog.slice(-2).join('　')}`;
+    status.textContent = `${lyricGapText()}全画面：${isFullscreen() ? '入っている' : '入っていない'}・戻す予定 ${c.wantFullscreen ? 'あり' : 'なし'}　画面：${wakeLock ? '暗くしない' : 'ふつう'}　音の仕組み：${x.state}　時計：${x.currentTime.toFixed(1)} 秒　${x.sampleRate} Hz　遅れ ${((x.baseLatency || 0) * 1000).toFixed(1)}+${((x.outputLatency || 0) * 1000).toFixed(1)} ms　${LAT}${SESSION ? '' : '　session=0'}　${audioLog.slice(-2).join('　')}`;
   }
   // 伴奏が鳴っていれば、伴奏の時計に合わせる（画面の時計とずれないように）
   // 伴奏が起きるのを待つあいだは、頭の少し前で止めておく
@@ -462,6 +458,7 @@ function tick() {
   if (t > c.end + 1) {
     // おしまい：数秒たつと、一覧に戻る（4 章の手順 4）
     c.done = true;
+    c.wantFullscreen = false;
     cue.textContent = 'おしまい';
     c.lyrics.finish(); // 下に残る「（後奏）」は消す
     c.audio?.stop();
@@ -473,7 +470,7 @@ function tick() {
 }
 
 function back() {
-  if (current) { cancelAnimationFrame(current.raf); current.audio?.stop(); }
+  if (current) { cancelAnimationFrame(current.raf); current.audio?.stop(); current.wantFullscreen = false; }
   current = null;
   cue.textContent = '';
   howCard.hidden = true;
@@ -526,9 +523,9 @@ $('btn-back-portrait').addEventListener('click', back);
 // 曲の画面のどこかに触ると、止める／続ける（ボタンと、縦向きの案内の上は除く）
 playView.addEventListener('click', (e) => {
   if (!current || e.target.closest('button, .rotate-note')) return;
-  // 裏に回る前が全画面だったら、もう一度全画面に入る（触った瞬間でないと入れないので、この中で同期して呼ぶ。
+  // 全画面で始めた曲なら、裏から戻って触ったとき、もう一度全画面に入る（触った瞬間でないと入れないので、この中で同期して呼ぶ。
   // 全画面を使えない端末では enterFullscreen が何もしない。Gin、11/7 OnePlus 6）
-  if (current.paused && current.why === 'hidden' && current.fsBeforeHidden) { current.fsBeforeHidden = false; enterFullscreen(); }
+  if (current.paused && current.why === 'hidden' && current.wantFullscreen && !isFullscreen()) enterFullscreen();
   togglePause(current);
 });
 // 大きさが変わると、キャンバスは空になる。止まっているときも、最後の時刻で描き直す
