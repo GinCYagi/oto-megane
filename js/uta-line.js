@@ -206,10 +206,14 @@ export class UtaLine {
       ctx.textBaseline = 'bottom';
       for (const e of this.heads) {
         const x = X(e.t);
-        if (x < -fs || x > w) continue;
+        // 字の左の端が描く範囲の左の端に着いたら、もう描かない。端で切れた濁点や「、」のかけらが残ると、ごみに見える（Gin、11/7 iPhone）。
+        // 急に消えないよう、端に着く前の半字ぶんで薄くしていく
+        if (x < 0 || x > w) continue;
+        ctx.globalAlpha = Math.min(1, x / (fs * 0.5));
         ctx.fillStyle = x <= nowX ? this.colors.past : this.colors.future;
         ctx.fillText(e.text, x, Y(e.midi) - lw);
       }
+      ctx.globalAlpha = 1;
     }
 
     // 音が始まった瞬間、線の頭で小さな丸い光が広がって消える（11/7 Gin。0.4 秒・一度だけ・小さく）。
