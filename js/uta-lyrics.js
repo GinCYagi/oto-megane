@@ -1,6 +1,6 @@
 // 歌モードの歌詞。線の下に、いまの行を大きく、次の行を小さく暗めに出す。
 // 行が替わるときは、次の行がいまの行の場所へ上がるだけにする（明るさを急に変えない）。
-import { HOLD } from './score.js?v=40';
+import { HOLD } from './score.js?v=41';
 
 const NEXT_SCALE = 0.62; // 次の行の大きさ（css/uta.css の .lyric[data-pos="next"] の scale と同じ）
 // 縦の幅が足りないとき（ツールバーありの横など）は、次の行を出さず、いまの行だけを大きく出す（Gin、11/7）。
@@ -93,6 +93,12 @@ export function charAt(line, t) {
   return t < line.t1 + 0.3 ? i : -1;
 }
 
+/** 画面の下の安全な余白（ホームの印など。env(safe-area-inset-bottom)）。曲の画面の下の padding から読む */
+function safeBottom(box) {
+  const v = box.parentElement && parseFloat(getComputedStyle(box.parentElement).paddingBottom);
+  return Number.isFinite(v) ? v : 0;
+}
+
 export class UtaLyrics {
   /** score を渡すと、「字:」（漢字＋ルビ）で出す。なければ音ごとの字（詞）で出す */
   constructor(box, events, { markNow = false, score = null, spans = [], oneRowBelow = ONE_ROW_BELOW_PX } = {}) {
@@ -150,7 +156,9 @@ export class UtaLyrics {
    */
   fit() {
     const box = this.box;
-    const H = box.clientHeight;
+    // 欄の高さは、欄の上の端から画面の下の端までに実際に残っている高さまでにする（欄が画面の外へはみ出していても、見える所だけで測る。OnePlus 6、11/7）
+    const left = Math.floor((window.innerHeight || Infinity) - box.getBoundingClientRect().top - safeBottom(box));
+    const H = Math.max(0, Math.min(box.clientHeight, left));
     const ps = [...box.children];
     if (!H || !ps.length) return;
     box.style.removeProperty('--lyric-fs');

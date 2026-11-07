@@ -1,11 +1,11 @@
 // 歌モード：曲の一覧 → 曲名を押す → 線が流れる。
 // T2b：伴奏を鳴らし、線と歌詞は伴奏の時計に合わせて流す。線の太さは楽譜の強弱（声を入れる T6 までの仮）。
-import { parseScore, timeline, accompaniment, transposeOf, slowed, instrumentalSpans } from './score.js?v=40';
-import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=40';
-import { UtaLyrics } from './uta-lyrics.js?v=40';
-import { UtaMap } from './uta-map.js?v=40';
-import { initContrastToggle, contrastDebug } from './contrast.js?v=40';
-import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=40';
+import { parseScore, timeline, accompaniment, transposeOf, slowed, instrumentalSpans } from './score.js?v=41';
+import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=41';
+import { UtaLyrics } from './uta-lyrics.js?v=41';
+import { UtaMap } from './uta-map.js?v=41';
+import { initContrastToggle, contrastDebug } from './contrast.js?v=41';
+import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=41';
 
 // 音の切れ目は「両方」（すき間＋字を音の頭に。Gin、2026-11-04）。確かめ用：?cut=none|gap|char で、ほかの案に切り替える。
 // 下の歌詞のいまの字に下線を付ける（U3。Gin、2026-11-04）。確かめ用：?mark=0 で外す
@@ -262,6 +262,7 @@ function start(score) {
   cue.textContent = 'まもなく始まります';
   clock.hidden = !CLOCK;
   clock.textContent = CLOCK ? 'まもなく' : '';
+  setViewHeight();
   const line = new UtaLine(canvas, events, { cut: CUT });
   line.fit();
   const lyrics = new UtaLyrics($('lyrics'), events, { markNow: MARK, score, spans: instrumentalSpans(score), ...(MINFS ? { oneRowBelow: MINFS } : {}) });
@@ -511,7 +512,34 @@ playView.addEventListener('click', (e) => {
   togglePause(current);
 });
 // 大きさが変わると、キャンバスは空になる。止まっているときも、最後の時刻で描き直す
-window.addEventListener('resize', () => { if (!current) return; placeHowCard(); current.map.fit(); current.map.draw(current.line.lastT ?? 0); current.line.fit(); current.line.draw(current.line.lastT ?? 0); current.lyrics.fit(); });
+/**
+ * 曲の画面の高さを、いま実際に見えている高さ（innerHeight）にそろえる。
+ * CSS の 100dvh だけに任せると、全画面に替わった直後などに画面と食い違い、歌詞が画面の下にはみ出した（OnePlus 6、Gin、11/7）
+ */
+function setViewHeight() {
+  document.documentElement.style.setProperty('--view-h', `${window.innerHeight}px`);
+}
+setViewHeight();
+
+/** 画面の大きさが替わったら、高さをそろえてから、線・帯・歌詞を合わせ直す */
+function relayout() {
+  setViewHeight();
+  if (!current) return;
+  placeHowCard();
+  current.map.fit(); current.map.draw(current.line.lastT ?? 0);
+  current.line.fit(); current.line.draw(current.line.lastT ?? 0);
+  current.lyrics.fit();
+}
+let relayoutTimer = 0;
+/** 替わった直後と、少し落ち着いたあと（全画面・ツールバーの出入りは、数回に分けて大きさが替わる端末がある）の 2 回合わせる */
+function relayoutSoon() {
+  relayout();
+  clearTimeout(relayoutTimer);
+  relayoutTimer = setTimeout(relayout, 350);
+}
+window.addEventListener('resize', relayoutSoon);
+document.addEventListener('fullscreenchange', relayoutSoon);
+document.addEventListener('webkitfullscreenchange', relayoutSoon);
 // 書体が届くと字の高さが変わるので、歌詞の欄を合わせ直す
 document.fonts?.addEventListener?.('loadingdone', () => current?.lyrics.fit());
 loadSongs().then(() => {
