@@ -1,10 +1,10 @@
 // 歌モード：曲の一覧 → 曲名を押す → 線が流れる。
 // T2b：伴奏を鳴らし、線と歌詞は伴奏の時計に合わせて流す。線の太さは楽譜の強弱（声を入れる T6 までの仮）。
-import { parseScore, timeline, accompaniment, transposeOf } from './score.js?v=22';
-import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=22';
-import { UtaLyrics } from './uta-lyrics.js?v=22';
-import { UtaMap } from './uta-map.js?v=22';
-import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=22';
+import { parseScore, timeline, accompaniment, transposeOf } from './score.js?v=23';
+import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=23';
+import { UtaLyrics } from './uta-lyrics.js?v=23';
+import { UtaMap } from './uta-map.js?v=23';
+import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=23';
 
 // 音の切れ目は「両方」（すき間＋字を音の頭に。Gin、2026-11-04）。確かめ用：?cut=none|gap|char で、ほかの案に切り替える。
 // 下の歌詞のいまの字に下線を付ける（U3。Gin、2026-11-04）。確かめ用：?mark=0 で外す
@@ -131,6 +131,14 @@ function exportOptions() {
   $('song-list').before(label);
 }
 
+/**
+ * 書体（Zen Maru Gothic）は、字の組ごとに分けて届く。歌の途中で新しい字が出たときに書体が替わらないよう、
+ * 一覧を出す時に、楽譜にある字の分を先に取りに行く。届かなくても、今の書体のまま動く（待たせない）
+ */
+function preloadFont(text) {
+  try { document.fonts?.load('500 1em "Zen Maru Gothic"', text).catch(() => {}); } catch { /* 書体の読み込みを知らないブラウザ */ }
+}
+
 async function loadSongs() {
   const list = $('song-list');
   if (EXPORT) exportOptions();
@@ -138,8 +146,10 @@ async function loadSongs() {
     try {
       const res = await fetch(file, { cache: 'no-cache' });
       if (!res.ok) throw new Error(`${res.status}`);
-      const score = parseScore(await res.text());
+      const text = await res.text();
+      const score = parseScore(text);
       if (score.errors.length) throw new Error(score.errors[0].message);
+      preloadFont(text);
       const li = document.createElement('li');
       const b = document.createElement('button');
       b.type = 'button';

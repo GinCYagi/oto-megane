@@ -178,7 +178,7 @@ export class UtaLine {
     // 案：字を音の頭に。線のすぐ上に、その音で歌う字を置く（線と一緒に流れる。過ぎた所は明るく、この先は暗め）
     if (this.cut === 'char' || this.cut === 'both') {
       const fs = Math.max(14, h * 0.075);
-      ctx.font = `${fs}px "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
+      ctx.font = `${fs}px "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
       ctx.textBaseline = 'bottom';
       for (const e of this.heads) {
         const x = X(e.t);

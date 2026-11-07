@@ -108,6 +108,7 @@
 使う音は、ここに一つ残らず載せます（曲が決まりしだい書き足します）。
 
 - 唱歌の旋律と詞は、作詞・作曲の両方が亡くなって権利が切れたものだけを使います。
+- 書体は [Zen Maru Gothic](https://fonts.google.com/specimen/Zen+Maru+Gothic)（The Zen Maru Gothic Project Authors、[SIL Open Font License 1.1](https://github.com/google/fonts/blob/main/ofl/zenmarugothic/OFL.txt)）を、Google Fonts から読み込んでいます。届かないときは、端末にある書体で出ます。
 - 歌声の録音は、作者（Gin）が歌って録ったものです。いまはデモ動画にだけ使い、録音のファイルはリポジトリに入れていません（下の「歌声の録音」）。
 
 ### 楽譜と伴奏の元

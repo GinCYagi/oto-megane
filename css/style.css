@@ -1,16 +1,19 @@
 /* 暗めの地に、明るさの差で描く。真っ黒・真っ白は避け、まぶしさを抑える。
    意味は位置・太さ・字・印で伝え、色だけに乗せない。点滅のアニメーションは使わない。 */
 :root {
-  --bg: #17191d;       /* 濃い灰の地 */
-  --panel: #22252b;
-  --text: #e6e4dd;     /* 地との明るさの比 約 13.8:1 */
-  --muted: #b4b7bc;    /* 地との明るさの比 約 8.8:1 */
-  --line: #ecebe4;     /* 音の線 */
-  --band: #9aa0a6;     /* 下の帯 */
-  --rhythm: #61666e;   /* 曲だけのときの広がり。地との比 約 3.05:1（面が広いので暗めに）、拍の線との比 約 4.8:1 */
-  --grid: rgba(236, 235, 228, 0.10);
-  --now: #8b9098;      /* 「いま」の線。地との比 約 5.5:1 */
-  --edge: #8b9098;     /* 枠・斜線。地との比 約 5.5:1、パネルとの比 約 4.8:1 */
+  /* 柔らかい見た目（11/7）：「黒に白」でコンソールのように見える、という声への直し。
+     地は藍色の夜空のような深い紺、字と線は生成り（少し黄みのある白）。比は地との明るさの比（WCAG） */
+  --bg: #151b2d;       /* 深い紺の地 */
+  --panel: #1f2840;
+  --text: #f1ebdb;     /* 生成り。地との比 約 14.4:1 */
+  --muted: #bdb8ab;    /* 地との比 約 8.7:1 */
+  --line: #f3edde;     /* 音の線 */
+  --band: #a3a6b3;     /* 下の帯 */
+  --rhythm: #646a7d;   /* 曲だけのときの広がり。地との比 約 3.2:1（面が広いので暗めに） */
+  --grid: rgba(243, 237, 222, 0.10);
+  --now: #8e919d;      /* 「いま」の線。地との比 約 5.5:1 */
+  --edge: #606b8d;     /* 枠・斜線。細く淡く。地との比 約 3.3:1 */
+  --radius: 18px;      /* ボタンと枠の角 */
   color-scheme: dark;
 }
 
@@ -20,15 +23,16 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", system-ui, sans-serif;
+  font-family: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic", "Noto Sans JP", system-ui, sans-serif;
   font-size: 18px;
+  font-weight: 500;
   line-height: 1.6;
 }
 
 header, main, footer { max-width: 900px; margin: 0 auto; padding: 0 16px; }
 
 h1 { font-size: 1.6rem; margin: 16px 0 4px; }
-h2 { font-size: 1rem; margin: 16px 0 4px; color: var(--muted); font-weight: normal; }
+h2 { font-size: 1rem; margin: 16px 0 4px; color: var(--muted); font-weight: 500; }
 .lead { margin: 0 0 12px; color: var(--muted); }
 
 #scope {
@@ -38,7 +42,7 @@ h2 { font-size: 1rem; margin: 16px 0 4px; color: var(--muted); font-weight: norm
   min-height: 260px;
   background: var(--bg);
   border: 1px solid var(--edge);
-  border-radius: 8px;
+  border-radius: var(--radius);
 }
 
 .legend { font-size: 0.85rem; color: var(--muted); margin: 6px 0 0; }
@@ -52,8 +56,8 @@ button, .button {
   font: inherit;
   color: var(--text);
   background: var(--panel);
-  border: 2px solid var(--edge);
-  border-radius: 10px;
+  border: 1.5px solid var(--edge);
+  border-radius: var(--radius);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -70,7 +74,7 @@ button:focus-visible, .number:focus-visible {
   margin-top: 16px;
   padding: 12px 16px;
   background: var(--panel);
-  border-radius: 10px;
+  border-radius: var(--radius);
 }
 .song-panel h2 { color: var(--text); font-weight: bold; font-size: 1.1rem; margin-top: 0; }
 .hint { margin: 0 0 8px; color: var(--muted); font-size: 0.9rem; }
@@ -82,8 +86,8 @@ button:focus-visible, .number:focus-visible {
   font: inherit;
   color: var(--text);
   background: var(--bg);
-  border: 2px solid var(--edge);
-  border-radius: 8px;
+  border: 1.5px solid var(--edge);
+  border-radius: 12px;
   padding: 0 8px;
 }
 #btn-play { margin-top: 8px; }
@@ -95,7 +99,7 @@ button:focus-visible, .number:focus-visible {
   margin-top: 16px;
   padding: 12px 16px;
   background: var(--panel);
-  border-radius: 10px;
+  border-radius: var(--radius);
 }
 .mic-label { font-size: 1.3rem; font-weight: bold; }
 .mic-reason { margin: 4px 0 0; color: var(--muted); }

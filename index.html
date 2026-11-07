@@ -4,15 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="dark">
-  <meta name="theme-color" content="#17191d">
+  <meta name="theme-color" content="#151b2d">
   <title>音めがね</title>
   <!-- ホーム画面に追加したとき、ブラウザの枠なしで開く（manifest の display: standalone。iPhone は apple-touch-icon を優先する） -->
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-title" content="音めがね">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <link rel="stylesheet" href="css/style.css?v=22">
-  <link rel="stylesheet" href="css/uta.css?v=22">
+  <!-- 書体：Zen Maru Gothic（SIL Open Font License 1.1）を Google Fonts から。届くまでは今の書体で出す（display=swap。待たせない） -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500&display=swap">
+  <link rel="stylesheet" href="css/style.css?v=23">
+  <link rel="stylesheet" href="css/uta.css?v=23">
 </head>
 <body class="uta">
   <section id="list-view" class="list-view">
@@ -67,6 +71,6 @@
     </div>
   </section>
 
-  <script type="module" src="js/uta.js?v=22"></script>
+  <script type="module" src="js/uta.js?v=23"></script>
 </body>
 </html>
