@@ -10,6 +10,7 @@
   --hue0-past: #ceb5fe; --hue0-future: #6c638f; /* うす紫 */
   --hue1-past: #05e79a; --hue1-future: #0d7f62; /* ミント */
   --hue2-past: #fbb61b; --hue2-future: #836524; /* はちみつ色 */
+  --label: #a3a6b3;           /* 間奏・後奏の見出し。歌詞（生成り）より薄く。地との比 約 7.3:1 */
   --map-back-past: #5a6178;   /* 地図の帯の奥（伴奏）の過ぎた所。手前の旋律より暗く淡く */
   --map-back-future: #363d54; /* 地図の帯の奥（伴奏）のこの先 */
 }
@@ -53,6 +54,7 @@
   --hue1-past: #ffffff; --hue1-future: #6b6b6b;
   --hue2-past: #ffffff; --hue2-future: #6b6b6b;
   --map-back-past: #5a5a5a; --map-back-future: #2e2e2e;
+  --label: #a8a8a8; /* 間奏・後奏の見出し。歌詞（白）・次の行（#e6e6e6）より暗く。地との比 約 8.9:1 */
   --line-scale: 1.35;
 }
 
@@ -102,6 +104,10 @@
 .lyric[data-pos="later"] { transform: translateY(3.2em) scale(0.62); opacity: 0; }
 .lyric rt { font-size: 0.42em; color: var(--muted); letter-spacing: 0; }
 .lyric .gap { display: inline-block; width: 0.6em; }
+/* 間奏・後奏の見出し（Gin、11/7）。括弧は付けず、歌詞より少し小さく（0.8 倍）、色は薄め。白黒でも、大きさと明るさで歌詞と分かる */
+.lyric.label .label-text { font-size: 0.8em; letter-spacing: 0.2em; }
+.lyric.label[data-pos="now"], .lyric.label[data-pos="next"] { color: var(--label); }
+.lyric.label rt { color: var(--label); }
 /* いまの字に下線（U3。形で示す。色だけに頼らない） */
 .syl.now-char { text-decoration: underline; text-decoration-thickness: 0.08em; text-underline-offset: 0.18em; }
 /* 困ったときの知らせ（伴奏が始まらない など）と ?debug=1。線の段の上の端に、地の色の帯で（位置は JS で線の段に合わせる。歌詞にかぶらないように、11/7） */

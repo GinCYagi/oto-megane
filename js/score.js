@@ -352,6 +352,33 @@ export function timeline(score) {
   return events;
 }
 
+/**
+ * 歌のない、伴奏だけの部分の区間（Gin、2026-11-07）。返り値：[{ kind, name, t0, t1 }]（曲の秒。timeline と同じ時計）。
+ * kind は「構成」の中の位置で決める：最初の番より前は 'intro'（前奏）、番と番のあいだは 'interlude'（間奏）、最後の番より後は 'outro'（後奏）。
+ * 春の小川のように、番のあいだの部分を [前奏] と書いていても、間奏として扱う。
+ */
+export function instrumentalSpans(score) {
+  const sec = 60 / Number(score.meta['速さ']);
+  const isVerse = (name) => score.verses.some((v) => v.name === name);
+  const firstVerse = score.form.findIndex(isVerse);
+  const lastVerse = score.form.length - 1 - [...score.form].reverse().findIndex(isVerse);
+  const spans = [];
+  let t = 0;
+  score.form.forEach((name, i) => {
+    const intro = score.intros[name];
+    if (intro) {
+      const d = sectionClock(intro, sec)(introBeats(intro));
+      const kind = firstVerse < 0 || i < firstVerse ? 'intro' : i > lastVerse ? 'outro' : 'interlude';
+      spans.push({ kind, name, t0: t, t1: t + d });
+      t += d;
+      return;
+    }
+    const v = score.verses.find((x) => x.name === name);
+    if (v) for (const ln of v.lines) for (const n of ln.notes) t += n.beats * sec;
+  });
+  return spans;
+}
+
 /** 「移調:」の半音の数（書いていなければ 0） */
 /**
  * ゆっくりモード（Gin、2026-11-07「速くて追えない、と言うケースも想定できるので」）。

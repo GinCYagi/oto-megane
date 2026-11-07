@@ -1,6 +1,6 @@
 // 歌モードの歌詞。線の下に、いまの行を大きく、次の行を小さく暗めに出す。
 // 行が替わるときは、次の行がいまの行の場所へ上がるだけにする（明るさを急に変えない）。
-import { HOLD } from './score.js?v=35';
+import { HOLD } from './score.js?v=36';
 
 const NEXT_SCALE = 0.62; // 次の行の大きさ（css/uta.css の .lyric[data-pos="next"] の scale と同じ）
 const LEAD_SEC = 0.6; // 次の行の頭のこれだけ前に、行を替える（前の行が終わっていれば）
@@ -45,6 +45,29 @@ export function segOfSyllables(syl, segs) {
   return out;
 }
 
+/** 間奏・後奏の見出し（括弧は付けない。歌詞より少し小さく、薄く出す。Gin、2026-11-07） */
+export const BREAK_LABEL = { interlude: { text: '間奏', ruby: 'かんそう' }, outro: { text: '後奏', ruby: 'こうそう' } };
+
+/**
+ * 歌詞の行の並びに、間奏・後奏の見出しの行を差し込む（Gin、2026-11-07：「まだ歌うのか」「止まったのか」が分かるように）。
+ * spans：instrumentalSpans(score)。見出しは、直前の主旋律の音が終わった所（前の行の t1）で、いまの行になる。
+ * 間奏のあいだは、次の番の最初の行が「次の行」に出る（前奏と同じく、歌い出しの LEAD_SEC 前に上がる）。後奏のあいだ、次の行は空く。
+ * 残りの拍を数える表示は付けない（カラオケに見えないように）。
+ */
+export function withBreaks(lines, spans) {
+  const out = [...lines];
+  for (const sp of spans) {
+    const label = BREAK_LABEL[sp.kind];
+    if (!label) continue;
+    let k = -1;
+    out.forEach((ln, i) => { if (!ln.label && ln.t1 <= sp.t0 + 1e-6) k = i; });
+    if (k < 0) continue;
+    const at = out[k].t1;
+    out.splice(k + 1, 0, { label: sp.kind, text: label.text, ruby: label.ruby, t0: at, t1: at, syl: [] });
+  }
+  return out;
+}
+
 /** いま t 秒のとき、いまの行の番号。曲の頭（前奏）では 1 行目を出しておく */
 export function lineAt(lines, t) {
   let i = 0;
@@ -64,15 +87,26 @@ export function charAt(line, t) {
 
 export class UtaLyrics {
   /** score を渡すと、「字:」（漢字＋ルビ）で出す。なければ音ごとの字（詞）で出す */
-  constructor(box, events, { markNow = false, score = null } = {}) {
+  constructor(box, events, { markNow = false, score = null, spans = [] } = {}) {
     this.box = box;
-    this.lines = lyricLines(events);
+    this.lines = withBreaks(lyricLines(events), spans);
     this.markNow = markNow;
     this.cur = -1;
     this.charIdx = -2;
     box.replaceChildren(...this.lines.map((ln) => {
       const p = document.createElement('p');
       p.className = 'lyric';
+      if (ln.label) {
+        // 間奏・後奏の見出し。字は歌詞より少し小さく、色は薄め（css の .lyric.label）
+        p.classList.add('label');
+        const r = document.createElement('ruby');
+        r.className = 'label-text';
+        r.append(ln.text);
+        const rt = document.createElement('rt'); rt.textContent = ln.ruby; r.append(rt);
+        p.append(r);
+        ln.spans = [];
+        return p;
+      }
       const segs = score?.verses[ln.verse]?.lines[ln.line]?.disp;
       if (segs) {
         const els = segs.map((s) => {

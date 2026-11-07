@@ -63,3 +63,32 @@ test('「字:」の漢字にルビがない・読みが詞と合わないとき�
   const bad2 = parseScore(base.replace('元: ウ|サ|ギ|オ|ヒ|シ|カ|ノ|ヤ|マ', '元: ウ|サ|ギ|オ|ヒ|シ|カ|ノ|ヤ'));
   assert.match(bad2.errors[0].message, /元は 9 個/);
 });
+
+test('間奏・後奏：構成の位置で決まり、見出しがいまの行に、次の番の最初の行が次の行に出る', async () => {
+  const { withBreaks } = await import('../js/uta-lyrics.js');
+  const { instrumentalSpans, slowed } = await import('../js/score.js');
+  const haru = parseScore(readFileSync(new URL('../songs/haru_no_ogawa.txt', import.meta.url), 'utf8'));
+  const furu = parseScore(readFileSync(new URL('../songs/furusato.txt', import.meta.url), 'utf8'));
+  assert.deepEqual(instrumentalSpans(haru).map((s) => s.kind), ['intro', 'interlude', 'interlude', 'outro']);
+  assert.deepEqual(instrumentalSpans(furu).map((s) => s.kind), ['intro', 'outro']);
+
+  const L = withBreaks(lyricLines(timeline(haru)), instrumentalSpans(haru));
+  const k = L.findIndex((l) => l.label === 'interlude');
+  const prev = L[k - 1], next = L[k + 1];
+  assert.equal(L[k].text, '間奏');
+  assert.equal(lineAt(L, prev.t1 - 0.05), k - 1);    // 歌っているあいだは、その行
+  assert.equal(lineAt(L, prev.t1 + 0.05), k);        // 主旋律の音が終わったら「間奏」
+  assert.equal(next.verse, prev.verse + 1);          // 次の行は、次の番の最初の行
+  assert.equal(next.line, 0);
+  assert.equal(lineAt(L, next.t0 - 0.7), k);         // 歌い出しの少し前まで「間奏」
+  assert.equal(lineAt(L, next.t0 - 0.5), k + 1);     // 前奏と同じく、LEAD_SEC 前に上がる
+  const last = L[L.length - 1];
+  assert.equal(last.label, 'outro');                 // 後奏が最後（次の行は空く）
+  assert.equal(last.text, '後奏');
+
+  // ゆっくりでも、同じ時計で決まる
+  const S = slowed(furu);
+  const Ls = withBreaks(lyricLines(timeline(S)), instrumentalSpans(S));
+  assert.equal(Ls[Ls.length - 1].label, 'outro');
+  assert.ok(Ls[Ls.length - 1].t0 > L.length && Ls[Ls.length - 1].t0 > 116.3);
+});
