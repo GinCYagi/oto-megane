@@ -146,6 +146,7 @@ export class UtaLine {
     this.range = songRange(events);
     this.colors = { past: cssVar('--line'), future: cssVar('--future'), now: cssVar('--nowline'), bg: cssVar('--bg') };
     this.hues = hueColors();
+    this.scale = Number(cssVar('--line-scale')) || 1; // 白黒（くっきり）のときは太く（T18）
   }
 
   /** 画面の大きさに合わせて、キャンバスの画素を整える（高精細の画面でもにじまないように） */
@@ -168,7 +169,7 @@ export class UtaLine {
     // 基準の太さ（mf）。音ごとに楽譜の強弱で変える（声を入れる T6 で、声の大きさにする）。
     // 11/7 に 1.5 倍に太くした（試してくれた人「もうちょい太くていいんじゃない」。ゆがむ・真ん中が暗い見え方でも追いやすく）
     const base = Math.min(w, h) * 0.024; // 「いま」の縦線と三角の印は、元の太さのまま
-    const lw = Math.max(7.5, base * 1.5);
+    const lw = Math.max(7.5, base * 1.5) * this.scale;
     const nowX = Math.round(w * NOW_AT);
     const X = (u) => xOf(u, t) * w;
     const Y = (m) => pad + yOf(m, this.range) * (h - 2 * pad);

@@ -6,6 +6,16 @@
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#151b2d">
   <title>音めがね</title>
+  <!-- 白黒（くっきり）を、描く前に決める（js/contrast.js と同じ決まり。自分で選んだものを優先、なければ端末の設定） -->
+  <script>
+    (function () {
+      var s = null;
+      try { s = localStorage.getItem('oto-megane-contrast'); } catch (e) {}
+      var m = function (q) { try { return window.matchMedia(q).matches; } catch (e) { return false; } };
+      var on = s === 'on' || (s !== 'off' && (m('(prefers-contrast: more)') || m('(forced-colors: active)')));
+      if (on) document.documentElement.setAttribute('data-contrast', 'bw');
+    })();
+  </script>
   <!-- ホーム画面に追加したとき、ブラウザの枠なしで開く（manifest の display: standalone。iPhone は apple-touch-icon を優先する） -->
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -15,8 +25,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=30">
-  <link rel="stylesheet" href="css/uta.css?v=30">
+  <link rel="stylesheet" href="css/style.css?v=31">
+  <link rel="stylesheet" href="css/uta.css?v=31">
 </head>
 <body class="uta">
   <section id="list-view" class="list-view">
@@ -27,6 +37,11 @@
     <footer>
       <p>医療機器ではありません。聞こえを診断・治療・改善するものではありません。</p>
       <p><a class="quiet-link" href="lab.html">試しの音・マイク・曲のファイルを見る（実験のページ）</a></p>
+      <!-- 見やすさ：正面にボタンを増やさず、奥に一つだけ（T18） -->
+      <details class="ease-settings">
+        <summary><ruby>見<rt>み</rt></ruby>やすさ</summary>
+        <label class="key-choice"><input type="checkbox" id="contrast-toggle"> <span><ruby>白<rt>しろ</rt></ruby><ruby>黒<rt>くろ</rt></ruby>（くっきり）</span></label>
+      </details>
     </footer>
   </section>
 
@@ -76,6 +91,6 @@
     </div>
   </section>
 
-  <script type="module" src="js/uta.js?v=30"></script>
+  <script type="module" src="js/uta.js?v=31"></script>
 </body>
 </html>

@@ -34,6 +34,26 @@
 .export-button:focus-visible, .song-button:focus-visible, .play-bar button:focus-visible { outline: 3px solid var(--text); outline-offset: 3px; }
 
 .quiet-link { color: var(--muted); }
+/* 見やすさ（一覧のいちばん下に小さく。押すと切り替えが一つだけ出る） */
+.ease-settings { margin: 8px 0 24px; color: var(--muted); }
+.ease-settings summary { cursor: pointer; min-height: 44px; display: inline-flex; align-items: center; padding: 0 4px; }
+.ease-settings summary rt, .ease-settings rt { font-size: 0.5em; }
+.ease-settings summary::before { content: '▸'; margin-right: 6px; } /* 押せると分かる印。開くと下向き */
+.ease-settings[open] summary::before { content: '▾'; }
+.ease-settings summary:focus-visible { outline: 3px solid var(--text); outline-offset: 3px; }
+
+/* 白黒（くっきり）（T18、Gin 11/7）。地は黒、線と字は白。行ごとの色は消し、過ぎた所とこの先は明るさの差だけで分ける。
+   差は今より大きく：過ぎた所（白）とこの先 約 5.3:1（ふだんは約 3.1:1）、この先と地 約 3.9:1。線は 1.35 倍に太く */
+:root[data-contrast="bw"] {
+  --bg: #000000; --panel: #141414; --text: #ffffff; --muted: #e6e6e6; --line: #ffffff;
+  --band: #bdbdbd; --rhythm: #6b6b6b; --grid: rgba(255, 255, 255, 0.16); --now: #bdbdbd; --edge: #9a9a9a;
+  --future: #6b6b6b; --nowline: #bdbdbd;
+  --hue0-past: #ffffff; --hue0-future: #6b6b6b;
+  --hue1-past: #ffffff; --hue1-future: #6b6b6b;
+  --hue2-past: #ffffff; --hue2-future: #6b6b6b;
+  --map-back-past: #5a5a5a; --map-back-future: #2e2e2e;
+  --line-scale: 1.35;
+}
 
 /* 線の画面：見えている高さ（ブラウザのツールバーを除いた高さ、dvh）いっぱい。下の 4 割ほどが歌詞。
    dvh を知らない古いブラウザは、vh のまま（前の形）にする */
