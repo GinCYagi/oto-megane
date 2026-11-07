@@ -1,3 +1,5 @@
+import { hueColors } from './uta-line.js?v=22';
+
 // 地図の帯（T4）：画面の上の細い帯に、曲全体を山脈の形で描き、いまの位置に印を付ける。
 // 帯の山は「大きさ」だけを表す。音の高さは起伏に入れない（Gin、2026-11-07）。
 // - 手前：旋律の一本の稜線。音ごとに、出だしで高く、伸ばすと少し下がる。休みでは谷に下りる。
@@ -91,6 +93,23 @@ function cssVar(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
+/**
+ * 手前の稜線を、歌詞の行ごとの色で塗り分けるための区切り。返り値：[{ t0, t1, hue }]（曲の秒）。
+ * 行の頭から次の行の頭までを一つにする（あいだの休みは谷なので、どちらの色でも見えない）。
+ */
+export function hueSpans(events, end) {
+  const spans = [];
+  for (const e of events) {
+    if (e.midi === null || e.hue === undefined) continue;
+    const last = spans[spans.length - 1];
+    if (last && last.hue === e.hue) continue;
+    if (last) last.t1 = e.t;
+    spans.push({ t0: e.t, t1: end, hue: e.hue });
+  }
+  if (spans.length) spans[0].t0 = 0;
+  return spans;
+}
+
 export class UtaMap {
   /** events：歌の音（withDynamics を通したもの）。acc：伴奏の音。end：曲の終わりの秒 */
   constructor(canvas, events, end, acc = []) {
@@ -99,6 +118,8 @@ export class UtaMap {
     this.end = end;
     this.events = events;
     this.acc = acc;
+    this.spans = hueSpans(events, end);
+    this.hues = hueColors();
     this.colors = {
       past: cssVar('--line'), future: cssVar('--future'), now: cssVar('--nowline'), base: cssVar('--grid'),
       backPast: cssVar('--map-back-past'), backFuture: cssVar('--map-back-future'),
@@ -151,8 +172,17 @@ export class UtaMap {
     ctx.fillRect(0, h - 2, w, 2);
     // 奥：伴奏（手前より暗く淡く）
     this.paint(this.backPath, nowX, this.colors.backPast, this.colors.backFuture);
-    // 手前：旋律の稜線
-    this.paint(this.frontPath, nowX, this.colors.past, this.colors.future);
+    // 手前：旋律の稜線。歌詞の行ごとの色（真ん中の線と同じ色）。明るさの差（過ぎた所・この先）はそのまま
+    if (!this.spans.length) this.paint(this.frontPath, nowX, this.colors.past, this.colors.future);
+    for (const sp of this.spans) {
+      const c = this.hues[sp.hue] || {};
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect((sp.t0 / this.end) * w, 0, ((sp.t1 - sp.t0) / this.end) * w, h);
+      ctx.clip();
+      this.paint(this.frontPath, nowX, c.past || this.colors.past, c.future || this.colors.future);
+      ctx.restore();
+    }
     // いまの位置の印：縦の線（帯の上から下まで）。山と溶け合わないよう、両側に地の色のすき間を空ける
     const x = Math.round(nowX);
     ctx.clearRect(x - 4, 0, 8, h);

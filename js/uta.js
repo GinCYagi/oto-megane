@@ -1,7 +1,7 @@
 // 歌モード：曲の一覧 → 曲名を押す → 線が流れる。
 // T2b：伴奏を鳴らし、線と歌詞は伴奏の時計に合わせて流す。線の太さは楽譜の強弱（声を入れる T6 までの仮）。
 import { parseScore, timeline, accompaniment, transposeOf } from './score.js?v=22';
-import { UtaLine, withDynamics } from './uta-line.js?v=22';
+import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=22';
 import { UtaLyrics } from './uta-lyrics.js?v=22';
 import { UtaMap } from './uta-map.js?v=22';
 import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=22';
@@ -208,7 +208,7 @@ function originalKey(score) {
 function start(score) {
   enterFullscreen();
   const acc = accompaniment(score);
-  const events = withDynamics(timeline(score), acc);
+  const events = withLineHue(withDynamics(timeline(score), acc));
   const ends = [...events, ...acc].map((e) => e.t + e.dur);
   listView.hidden = true;
   playView.hidden = false;

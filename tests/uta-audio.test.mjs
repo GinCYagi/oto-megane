@@ -116,3 +116,21 @@ test('地図の帯の奥：伴奏の、同時に鳴っている音の数と強�
   assert.equal(p[35], 0);       // 鳴っていない所は 0
   assert.ok(Math.max(...p) <= 1 + 1e-6);
 });
+
+test('行ごとの色：となり合う行は違う色、同じ行は同じ色、休符には付けない', async () => {
+  const { withLineHue, lineRuns } = await import('../js/uta-line.js');
+  const ev = withLineHue([
+    { t: 0, dur: 1, midi: 60, verse: 1, line: 1 },
+    { t: 1, dur: 1, midi: 62, verse: 1, line: 1 },
+    { t: 2, dur: 1, midi: 64, verse: 1, line: 2 },
+    { t: 3, dur: 1, midi: null, verse: 1, line: 2 },
+    { t: 4, dur: 1, midi: 65, verse: 1, line: 3 },
+    { t: 5, dur: 1, midi: 67, verse: 2, line: 1 },
+  ]);
+  assert.deepEqual(ev.map((e) => e.hue), [0, 0, 1, undefined, 2, 0]);
+  // つながった音でも、行が替われば線を分ける（色が替わる所）
+  const runs = lineRuns(ev);
+  assert.deepEqual(runs.map((r) => r.hue), [0, 1, 2, 0]);
+  const { hueSpans } = await import('../js/uta-map.js');
+  assert.deepEqual(hueSpans(ev, 7), [{ t0: 0, t1: 2, hue: 0 }, { t0: 2, t1: 4, hue: 1 }, { t0: 4, t1: 5, hue: 2 }, { t0: 5, t1: 7, hue: 0 }]);
+});

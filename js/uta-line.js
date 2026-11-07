@@ -20,6 +20,22 @@ export function withDynamics(events, acc, part = '右手') {
   });
 }
 
+/**
+ * 歌詞の行ごとの色の番号（0〜n-1 を順に回す）を、歌の音に付ける（T13、Gin 2026-11-07）。
+ * 意味は明るさの差（過ぎた所・この先）で描き、色はその上に重ねる手がかり。となり合う行は必ず違う色になる。
+ */
+export const HUES = 3;
+export function withLineHue(events, n = HUES) {
+  let k = -1;
+  let key = null;
+  return events.map((e) => {
+    if (e.midi === null) return e;
+    const kk = `${e.verse}/${e.line}`;
+    if (kk !== key) { key = kk; k++; }
+    return { ...e, hue: k % n };
+  });
+}
+
 /** 強さを、線の太さの倍率に。差が目で分かるよう 1.5 乗にする（p 約 0.5・mp 約 0.75・mf 1・f 約 1.3） */
 export function widthScale(vel = BASE_VEL) {
   return Math.min(1.5, Math.max(0.45, (vel / BASE_VEL) ** 1.5));
@@ -43,8 +59,8 @@ export function lineRuns(events, { gap = false } = {}) {
   let prev = null;
   for (const e of events) {
     if (e.midi === null) { run = null; prev = null; continue; }
-    const joined = run && prev && Math.abs(prev.t + prev.dur - e.t) < 1e-6;
-    if (!joined) { run = []; if (e.vel !== undefined) run.vel = e.vel; runs.push(run); run.push({ t: e.t, midi: e.midi }); }
+    const joined = run && prev && Math.abs(prev.t + prev.dur - e.t) < 1e-6 && prev.hue === e.hue;
+    if (!joined) { run = []; if (e.vel !== undefined) run.vel = e.vel; if (e.hue !== undefined) run.hue = e.hue; runs.push(run); run.push({ t: e.t, midi: e.midi }); }
     else {
       const g = Math.min(GLIDE_SEC, prev.dur / 3, e.dur / 3);
       run[run.length - 1] = { t: e.t - g, midi: prev.midi }; // 前の音の終わりを少し手前にして、斜めにつなぐ
@@ -68,7 +84,7 @@ export function gapRuns(events) {
   for (const e of events) {
     if (e.midi === null) { prev = null; continue; }
     const g = Math.min(GAP_SEC, e.dur * 0.25);
-    const slur = prev && e.text === 'ー' && Math.abs(prev.t + prev.dur - e.t) < 1e-6;
+    const slur = prev && e.text === 'ー' && Math.abs(prev.t + prev.dur - e.t) < 1e-6 && prev.hue === e.hue;
     if (slur) {
       const run = runs[runs.length - 1];
       const glide = Math.min(GLIDE_SEC, prev.dur / 3, e.dur / 3);
@@ -77,6 +93,7 @@ export function gapRuns(events) {
     } else {
       const run = [{ t: e.t, midi: e.midi }, { t: e.t + e.dur - g, midi: e.midi }];
       if (e.vel !== undefined) run.vel = e.vel;
+      if (e.hue !== undefined) run.hue = e.hue;
       runs.push(run);
     }
     prev = e;
@@ -98,6 +115,11 @@ function cssVar(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
+/** 行ごとの色（css の --hue0-past など）。[{ past, future }, …] */
+export function hueColors(n = HUES) {
+  return Array.from({ length: n }, (_, i) => ({ past: cssVar(`--hue${i}-past`), future: cssVar(`--hue${i}-future`) }));
+}
+
 export class UtaLine {
   /** cut：音の切れ目の見せ方の案。'none'（いまの形）・'gap'（すき間）・'char'（字を音の頭に）・'both'（両方） */
   constructor(canvas, events, { cut = 'none' } = {}) {
@@ -108,6 +130,7 @@ export class UtaLine {
     this.heads = events.filter((e) => e.midi !== null && e.text && e.text !== 'ー');
     this.range = songRange(events);
     this.colors = { past: cssVar('--line'), future: cssVar('--future'), now: cssVar('--nowline'), bg: cssVar('--bg') };
+    this.hues = hueColors();
   }
 
   /** 画面の大きさに合わせて、キャンバスの画素を整える（高精細の画面でもにじまないように） */
@@ -133,16 +156,17 @@ export class UtaLine {
     const Y = (m) => pad + yOf(m, this.range) * (h - 2 * pad);
 
     // この先は暗め、過ぎた所は明るく。同じ線を、「いま」の左右で切り分けて 2 回描く
-    for (const [x0, x1, color] of [[nowX, w, this.colors.future], [0, nowX, this.colors.past]]) {
+    // 色は歌詞の行ごと（明るさの差はそのまま。色は重ねる手がかり）
+    for (const [x0, x1, side] of [[nowX, w, 'future'], [0, nowX, 'past']]) {
       ctx.save();
       ctx.beginPath();
       ctx.rect(x0, 0, x1 - x0, h);
       ctx.clip();
-      ctx.strokeStyle = color;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       for (const run of this.runs) {
         if (X(run[run.length - 1].t) < -lw || X(run[0].t) > w + lw) continue;
+        ctx.strokeStyle = this.hues[run.hue ?? 0]?.[side] || this.colors[side];
         ctx.lineWidth = Math.max(3, lw * widthScale(run.vel));
         ctx.beginPath();
         run.forEach((p, i) => (i ? ctx.lineTo(X(p.t), Y(p.midi)) : ctx.moveTo(X(p.t), Y(p.midi))));
