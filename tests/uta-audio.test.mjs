@@ -90,7 +90,29 @@ test('地図の山：休みは 0、強い所ほど高い、曲の長さで区切
     { t: 4, dur: 2, midi: null },
     { t: 6, dur: 2, midi: 62, vel: 100 },
   ];
-  const p = mapProfile(ev, 8, 8);
-  assert.deepEqual([...p].map((v) => Math.round(v * 127)), [0, 0, 50, 50, 0, 0, 100, 100]);
+  const p = mapProfile(ev, 8, 80); // 0.1 秒ごと
+  // 休み（前奏・音のあいだ）は谷（0）
+  assert.equal(p[5], 0);
+  assert.equal(p[50], 0);
+  // 出だしで高く、伸ばすと下がる
+  assert.ok(p[61] > p[75]);
+  assert.ok(p[75] > 0.25); // 伸ばしても谷（0）までは下がらない
+  // 強弱は全体の係数：弱い音（vel 50）の山は、強い音（vel 100）の山より低い
+  assert.ok(p[21] < p[61] * 0.5);
+  // 音の高さは起伏に入れない：同じ強さなら、高さが違っても同じ山
+  const q = mapProfile([{ t: 0, dur: 1, midi: 60, vel: 85 }, { t: 2, dur: 1, midi: 72, vel: 85 }], 3, 30);
+  assert.ok(Math.abs(q[3] - q[23]) < 1e-6);
   assert.equal(mapProfile([], 0, 4).length, 4);
+});
+
+test('地図の帯の奥：伴奏の、同時に鳴っている音の数と強さ', async () => {
+  const { accProfile } = await import('../js/uta-map.js');
+  const acc = [
+    { t: 0, dur: 1, midis: [48], vel: 85 },
+    { t: 2, dur: 1, midis: [48, 52, 55], vel: 85 },
+  ];
+  const p = accProfile(acc, 4, 40);
+  assert.ok(p[25] > p[5] * 2); // 和音（3 音）の所は、1 音の所より高い
+  assert.equal(p[35], 0);       // 鳴っていない所は 0
+  assert.ok(Math.max(...p) <= 1 + 1e-6);
 });

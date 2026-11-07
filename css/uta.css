@@ -2,6 +2,8 @@
 :root {
   --future: #767b83; /* この先の線。地との比 約 4.1:1、過ぎた所の線（--line）との比 約 3.6:1（点検係の計算、3:1 を超える） */
   --nowline: #b4b7bc; /* 「いま」の縦線。この先の線と溶け合わないよう、それより明るくする */
+  --map-back-past: #565c66;   /* 地図の帯の奥（伴奏）の過ぎた所。手前の旋律より暗く淡く */
+  --map-back-future: #343941; /* 地図の帯の奥（伴奏）のこの先 */
 }
 
 .list-view { max-width: 900px; margin: 0 auto; padding: 0 16px; }
@@ -45,7 +47,7 @@
 .play-note { font-size: 0.75em; margin-left: 0.5em; }
 .play-bar button { flex: 0 0 auto; white-space: nowrap; min-height: 52px; font-size: clamp(1rem, 4.5vh, 2rem); font-size: clamp(1rem, 4.5dvh, 2rem); }
 /* 地図の帯（T4）：曲名の下の細い帯。曲全体の山と、いまの位置 */
-.uta-map { display: block; width: 100%; flex: 0 0 auto; height: 18px; height: clamp(12px, 4.5dvh, 36px); margin-top: 6px; }
+.uta-map { display: block; width: 100%; flex: 0 0 auto; height: 18px; height: clamp(16px, 6dvh, 40px); margin-top: 6px; }
 .uta-line { display: block; width: 100%; flex: 0 0 52%; min-height: 0; margin-top: 8px; }
 
 /* 歌詞：いまの行を大きく、次の行を小さく暗めに。行が替わるときは、次の行が上がってくるだけ。
