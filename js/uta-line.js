@@ -150,7 +150,10 @@ export class UtaLine {
     ctx.fillStyle = this.colors.bg;
     ctx.fillRect(0, 0, w, h);
     const pad = h * 0.08;
-    const lw = Math.max(5, Math.min(w, h) * 0.024); // 基準の太さ（mf）。音ごとに楽譜の強弱で変える（声を入れる T6 で、声の大きさにする）
+    // 基準の太さ（mf）。音ごとに楽譜の強弱で変える（声を入れる T6 で、声の大きさにする）。
+    // 11/7 に 1.5 倍に太くした（試してくれた人「もうちょい太くていいんじゃない」。ゆがむ・真ん中が暗い見え方でも追いやすく）
+    const base = Math.min(w, h) * 0.024; // 「いま」の縦線と三角の印は、元の太さのまま
+    const lw = Math.max(7.5, base * 1.5);
     const nowX = Math.round(w * NOW_AT);
     const X = (u) => xOf(u, t) * w;
     const Y = (m) => pad + yOf(m, this.range) * (h - 2 * pad);
@@ -167,7 +170,7 @@ export class UtaLine {
       for (const run of this.runs) {
         if (X(run[run.length - 1].t) < -lw || X(run[0].t) > w + lw) continue;
         ctx.strokeStyle = this.hues[run.hue ?? 0]?.[side] || this.colors[side];
-        ctx.lineWidth = Math.max(3, lw * widthScale(run.vel));
+        ctx.lineWidth = Math.max(4.5, lw * widthScale(run.vel));
         ctx.beginPath();
         run.forEach((p, i) => (i ? ctx.lineTo(X(p.t), Y(p.midi)) : ctx.moveTo(X(p.t), Y(p.midi))));
         ctx.stroke();
@@ -177,7 +180,7 @@ export class UtaLine {
 
     // 案：字を音の頭に。線のすぐ上に、その音で歌う字を置く（線と一緒に流れる。過ぎた所は明るく、この先は暗め）
     if (this.cut === 'char' || this.cut === 'both') {
-      const fs = Math.max(14, h * 0.075);
+      const fs = Math.max(16, h * 0.09);
       ctx.font = `${fs}px "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif`;
       ctx.textBaseline = 'bottom';
       for (const e of this.heads) {
@@ -189,8 +192,8 @@ export class UtaLine {
     }
 
     // 「いま」の縦線（動かない）。太さは音の線に合わせ、上下の端に三角の印を付けて、形でも分かるようにする
-    const nw = Math.max(2, lw / 2);
-    const tri = lw * 1.4;
+    const nw = Math.max(2, Math.max(5, base) / 2);
+    const tri = Math.max(5, base) * 1.4;
     ctx.strokeStyle = ctx.fillStyle = this.colors.now;
     ctx.lineWidth = nw;
     ctx.beginPath();

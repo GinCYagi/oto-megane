@@ -66,10 +66,10 @@
   position: absolute; left: 0; right: 0; margin: 0; text-align: center; white-space: nowrap;
   line-height: 1.25; transform-origin: center top;
   transition: transform 0.6s ease, opacity 0.6s ease, color 0.6s ease;
-  font-size: clamp(1.4rem, 9vh, 4.6rem); letter-spacing: 0.08em;
+  font-size: clamp(1.4rem, 10vh, 5.2rem); letter-spacing: 0.08em;
 }
 @supports (height: 1cqh) {
-  .lyric { font-size: clamp(1rem, 27cqh, 4.6rem); }
+  .lyric { font-size: clamp(1rem, 30cqh, 5.2rem); } /* 11/7 に少し大きく（27cqh → 30cqh） */
 }
 .lyric[data-pos="now"]   { transform: translateY(0.35em) scale(1); opacity: 1; color: var(--text); }
 .lyric[data-pos="next"]  { transform: translateY(1.95em) scale(0.62); opacity: 1; color: var(--muted); }
