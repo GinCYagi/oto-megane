@@ -1,11 +1,11 @@
 // 歌モード：曲の一覧 → 曲名を押す → 線が流れる。
 // T2b：伴奏を鳴らし、線と歌詞は伴奏の時計に合わせて流す。線の太さは楽譜の強弱（声を入れる T6 までの仮）。
-import { parseScore, timeline, accompaniment, transposeOf, slowed, instrumentalSpans } from './score.js?v=41';
-import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=41';
-import { UtaLyrics } from './uta-lyrics.js?v=41';
-import { UtaMap } from './uta-map.js?v=41';
-import { initContrastToggle, contrastDebug } from './contrast.js?v=41';
-import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=41';
+import { parseScore, timeline, accompaniment, transposeOf, slowed, instrumentalSpans } from './score.js?v=42';
+import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=42';
+import { UtaLyrics } from './uta-lyrics.js?v=42';
+import { UtaMap } from './uta-map.js?v=42';
+import { initContrastToggle, contrastDebug } from './contrast.js?v=42';
+import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=42';
 
 // 音の切れ目は「両方」（すき間＋字を音の頭に。Gin、2026-11-04）。確かめ用：?cut=none|gap|char で、ほかの案に切り替える。
 // 下の歌詞のいまの字に下線を付ける（U3。Gin、2026-11-04）。確かめ用：?mark=0 で外す
@@ -98,6 +98,7 @@ document.addEventListener('visibilitychange', () => {
   const c = current;
   if (!c || c.done) return;
   if (document.visibilityState === 'hidden') { pause(c, 'hidden'); return; }
+  relayoutSoon(); // 裏にいるあいだに全画面・ツールバーが替わっても、resize を受け取れていないことがある（OnePlus 6、11/7）
   keepAwake(); // 画面を暗くしない約束は、見えなくなると外れるので頼み直す
   if (c.paused && c.why === 'hidden') cue.textContent = PAUSE_TEXT.hidden;
 });
@@ -415,6 +416,8 @@ function giveUp(c) {
 
 function tick() {
   const c = current;
+  // 念のための網：見えている高さが、最後に合わせた高さと違ったら合わせ直す（知らせを受け取り損ねても、次のコマで直る）
+  if (window.innerHeight !== viewH) relayout();
   // 見張り：鳴らし始めたのに、音の時計が WATCH_SEC のあいだ進まなければ、伴奏なしに切り替える
   if (c.audio?.started && !c.paused) {
     const now = performance.now();
@@ -516,8 +519,10 @@ playView.addEventListener('click', (e) => {
  * 曲の画面の高さを、いま実際に見えている高さ（innerHeight）にそろえる。
  * CSS の 100dvh だけに任せると、全画面に替わった直後などに画面と食い違い、歌詞が画面の下にはみ出した（OnePlus 6、Gin、11/7）
  */
+let viewH = 0; // 最後に --view-h に入れた高さ
 function setViewHeight() {
-  document.documentElement.style.setProperty('--view-h', `${window.innerHeight}px`);
+  viewH = window.innerHeight;
+  document.documentElement.style.setProperty('--view-h', `${viewH}px`);
 }
 setViewHeight();
 
@@ -540,6 +545,7 @@ function relayoutSoon() {
 window.addEventListener('resize', relayoutSoon);
 document.addEventListener('fullscreenchange', relayoutSoon);
 document.addEventListener('webkitfullscreenchange', relayoutSoon);
+window.addEventListener('pageshow', relayoutSoon); // 戻るボタンなどで、しまってあったページが出てきたとき
 // 書体が届くと字の高さが変わるので、歌詞の欄を合わせ直す
 document.fonts?.addEventListener?.('loadingdone', () => current?.lyrics.fit());
 loadSongs().then(() => {
