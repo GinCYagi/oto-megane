@@ -73,6 +73,15 @@ export function vocalVels(events, samples, sr, at) {
   });
 }
 
+/**
+ * 歌声の強弱で描くかどうか（Gin、2026-11-08）。作者の歌声が実際に鳴るとき（?vocal=1 で、元の速さ・ふだんの高さ）だけ。
+ * それ以外（元の高さ・ゆっくり・?vocal=1 なし）は、?width=voice があっても楽譜の強弱で描く（見える形と鳴る音がずれないように）。
+ * 測った強さがまだない（読み込みが間に合わない・失敗した）ときも、楽譜の強弱
+ */
+export function voiceWidthOn(score, { widthVoice, vocal }) {
+  return !!(widthVoice && vocal && score.vocal && score.voiceVels && !score.slow && !score.keyNote);
+}
+
 /** vocalVels の並びを、歌の音に順に付け直す（休符と、測れなかった音は今までの vel のまま） */
 export function withVocalVels(events, vels) {
   let k = 0;

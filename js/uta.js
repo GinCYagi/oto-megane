@@ -1,11 +1,11 @@
 // 歌モード：曲の一覧 → 曲名を押す → 線が流れる。
 // T2b：伴奏を鳴らし、線と歌詞は伴奏の時計に合わせて流す。線の太さは楽譜の強弱（声を入れる T6 までの仮）。
-import { parseScore, timeline, accompaniment, transposeOf, slowed, instrumentalSpans } from './score.js?v=49';
-import { UtaLine, withDynamics, withLineHue, vocalVels, withVocalVels } from './uta-line.js?v=49';
-import { UtaLyrics } from './uta-lyrics.js?v=49';
-import { UtaMap } from './uta-map.js?v=49';
-import { initContrastToggle, contrastDebug } from './contrast.js?v=49';
-import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=49';
+import { parseScore, timeline, accompaniment, transposeOf, slowed, instrumentalSpans } from './score.js?v=50';
+import { UtaLine, withDynamics, withLineHue, vocalVels, withVocalVels, voiceWidthOn } from './uta-line.js?v=50';
+import { UtaLyrics } from './uta-lyrics.js?v=50';
+import { UtaMap } from './uta-map.js?v=50';
+import { initContrastToggle, contrastDebug } from './contrast.js?v=50';
+import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=50';
 
 // 音の切れ目は「両方」（すき間＋字を音の頭に。Gin、2026-11-04）。確かめ用：?cut=none|gap|char で、ほかの案に切り替える。
 // 下の歌詞のいまの字に下線を付ける（U3。Gin、2026-11-04）。確かめ用：?mark=0 で外す
@@ -18,7 +18,7 @@ const MELODY = params.get('melody') !== '0';
 // ゆっくり・元の本の高さ（ト長調）では、歌の速さと高さが合わないので鳴らさない。読み込めないときは、黙って仮の主旋律に戻す
 const VOCAL = params.get('vocal') === '1';
 // 線の太さと帯の山を、歌声の大きさから取る試し（?width=voice。Gin、2026-11-08）。既定は楽譜の強弱。
-// 一覧を開いたときに録音を読み、元の速さ・ふだんの高さで音ごとの強さを測っておく。間に合わない・読めないときは、黙って楽譜の強弱
+// 歌声が実際に鳴るとき（?vocal=1 で、元の速さ・ふだんの高さ）だけ効く。一覧を開いたときに録音を読んで測っておき、間に合わない・読めないときは、黙って楽譜の強弱
 const WIDTH_VOICE = params.get('width') === 'voice';
 const VOCAL_WAIT_SEC = 6; // 歌の読み込みをこれ以上待たない（仮の主旋律で始める）
 /**
@@ -198,7 +198,7 @@ async function loadSongs() {
       const res = await fetch(file, { cache: 'no-cache' });
       if (!res.ok) throw new Error(`${res.status}`);
       const text = await res.text();
-      const vocal = (VOCAL || WIDTH_VOICE) && VOCALS[file] ? { ...VOCALS[file] } : null;
+      const vocal = VOCAL && VOCALS[file] ? { ...VOCALS[file] } : null;
       // 押してから待たないよう、ファイルだけ先に取っておく（音にするのは、押したときの AudioContext で）
       if (vocal) {
         vocal.bytes = fetch(vocal.url).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status}`))));
@@ -294,7 +294,8 @@ function start(score) {
   enterFullscreen();
   const acc = accompaniment(score);
   let events = withDynamics(timeline(score), acc);
-  if (WIDTH_VOICE && score.voiceVels) events = withVocalVels(events, score.voiceVels.vels); // 音の順番で引き継ぐ（ゆっくり・高さを変えても同じ）
+  // 歌声の強弱で描くのは、作者の歌声が実際に鳴るとき（?vocal=1 で、元の速さ・ふだんの高さ）だけ
+  if (voiceWidthOn(score, { widthVoice: WIDTH_VOICE, vocal: VOCAL })) events = withVocalVels(events, score.voiceVels.vels);
   events = withLineHue(events);
   const ends = [...events, ...acc].map((e) => e.t + e.dur);
   listView.hidden = true;
@@ -349,7 +350,7 @@ function start(score) {
   tick();
 }
 
-/** ?width=voice：録音を読み、元の速さ・ふだんの高さで、音ごとの強さを測って score.voiceVels に置く（ゆっくり・元の調の写しにも引き継がれる） */
+/** ?width=voice（?vocal=1 と一緒のとき）：録音を読み、元の速さ・ふだんの高さで、音ごとの強さを測って score.voiceVels に置く */
 function measureVoice(score, vocal) {
   const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
   if (!OAC) return;

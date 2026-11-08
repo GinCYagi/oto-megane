@@ -66,3 +66,15 @@ test('vocalVels：歌声の大きい音ほど強く、休符・録音の外は n
   assert.equal(w.at(-1).vel, 85);
   assert.equal(w[3].vel, v[2]);
 });
+
+test('voiceWidthOn：歌声の強弱で描くのは、歌声が鳴るとき（?vocal=1・元の速さ・ふだんの高さ）だけ', async () => {
+  const { voiceWidthOn } = await import('../js/uta-line.js');
+  const sc = { vocal: { url: 'x.m4a' }, voiceVels: { vels: [80] } };
+  const on = { widthVoice: true, vocal: true };
+  assert.equal(voiceWidthOn(sc, on), true);
+  assert.equal(voiceWidthOn({ ...sc, slow: true }, on), false); // ゆっくり
+  assert.equal(voiceWidthOn({ ...sc, keyNote: '元の本の高さ（ト長調）' }, on), false); // 元の高さ
+  assert.equal(voiceWidthOn(sc, { widthVoice: true, vocal: false }), false); // ?vocal=1 なし
+  assert.equal(voiceWidthOn(sc, { widthVoice: false, vocal: true }), false); // ?width=voice なし（既定）
+  assert.equal(voiceWidthOn({ ...sc, voiceVels: null }, on), false); // 測るのが間に合わない・失敗
+});
