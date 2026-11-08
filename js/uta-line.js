@@ -33,6 +33,62 @@ export function withDynamics(events, acc, part = '右手') {
 }
 
 /**
+ * 歌声の大きさから、歌の音ごとの強さ（vel）を出す（?width=voice の試し。Gin、2026-11-08）。
+ * samples：歌の録音（モノラル）、sr：その標本化周波数、at：録音の 0 秒が曲の何秒目か（?vocal=1 と同じ対応）。
+ * 音ごとに、その音の区間の RMS を dB にし、同じ行の前後の音と軽くならしてから、曲の中の弱い所（5%）〜強い所（95%）を VOICE_VEL_LO〜HI に広げる。
+ * 返り値：休符を除いた歌の音の順に並んだ vel（測れなかった音は null）。音の順番は、ゆっくり・高さを変えても同じ
+ */
+export const VOICE_VEL_LO = 55;
+export const VOICE_VEL_HI = 110;
+export function vocalVels(events, samples, sr, at) {
+  const notes = events.filter((e) => e.midi !== null);
+  const db = notes.map((e) => {
+    const a = Math.max(0, Math.round((e.t - at) * sr));
+    const b = Math.min(samples.length, Math.round((e.t + e.dur - at) * sr));
+    if (b - a < sr * 0.03) return null; // 歌の区間の外・短すぎる音
+    let sum = 0;
+    for (let i = a; i < b; i++) sum += samples[i] * samples[i];
+    const rms = Math.sqrt(sum / (b - a));
+    return rms > 1e-5 ? 20 * Math.log10(rms) : null;
+  });
+  // 子音や息で一音ずつ跳ねないよう、同じ行の前後の音と 1:2:1 でならす（句の張り・そっと歌った所は残る）
+  const sm = db.map((v, i) => {
+    if (v === null) return null;
+    let sum = 2 * v, w = 2;
+    for (const j of [i - 1, i + 1]) {
+      const n = notes[j];
+      if (n && db[j] !== null && n.verse === notes[i].verse && n.line === notes[i].line) { sum += db[j]; w += 1; }
+    }
+    return sum / w;
+  });
+  db.splice(0, db.length, ...sm);
+  const ok = db.filter((v) => v !== null).sort((x, y) => x - y);
+  if (ok.length < 4) return db.map(() => null);
+  const q = (p) => ok[Math.min(ok.length - 1, Math.floor(p * ok.length))];
+  const lo = q(0.05), hi = q(0.95);
+  return db.map((v) => {
+    if (v === null) return null;
+    const u = hi > lo ? Math.min(1, Math.max(0, (v - lo) / (hi - lo))) : 0.5;
+    return Math.round(VOICE_VEL_LO + u * (VOICE_VEL_HI - VOICE_VEL_LO));
+  });
+}
+
+/** vocalVels の並びを、歌の音に順に付け直す（休符と、測れなかった音は今までの vel のまま） */
+export function withVocalVels(events, vels) {
+  let k = 0;
+  return events.map((e) => {
+    if (e.midi === null) return e;
+    const v = vels[k++];
+    return v == null ? e : { ...e, vel: v };
+  });
+}
+
+/** 歌声の大きさで、歌の音の強さを付け直す（buffer：AudioBuffer、at：録音の 0 秒が曲の何秒目か） */
+export function withVocalDynamics(events, buffer, at) {
+  return withVocalVels(events, vocalVels(events, buffer.getChannelData(0), buffer.sampleRate, at));
+}
+
+/**
  * 歌詞の行ごとの色の番号（0〜n-1 を順に回す）を、歌の音に付ける（T13、Gin 2026-11-07）。
  * 意味は明るさの差（過ぎた所・この先）で描き、色はその上に重ねる手がかり。となり合う行は必ず違う色になる。
  */

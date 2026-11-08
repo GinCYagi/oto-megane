@@ -44,3 +44,25 @@ test('音の頭の光：0.4 秒で一度だけ広がって消える（点滅し�
     prevR = g.r; prevA = g.a;
   }
 });
+
+test('vocalVels：歌声の大きい音ほど強く、休符・録音の外は null（?width=voice）', async () => {
+  const { vocalVels, withVocalVels, VOICE_VEL_LO, VOICE_VEL_HI } = await import('../js/uta-line.js');
+  const sr = 1000;
+  const samples = new Float32Array(12 * sr);
+  const amp = [0.02, 0.05, 0.1, 0.2, 0.4, 0.8];
+  amp.forEach((a, k) => { for (let i = 0; i < sr; i++) samples[(k + 1) * sr + i] = a * Math.sin(i); });
+  // 録音の 0 秒＝曲の -1 秒。音 k は曲の k 秒目から 1 秒
+  const ev = amp.map((_, k) => ({ t: k, dur: 1, midi: 60 }));
+  ev.splice(2, 0, { t: 1.5, dur: 0.5, midi: null });
+  ev.push({ t: 30, dur: 1, midi: 60 }); // 録音の外
+  const v = vocalVels(ev, samples, sr, -1);
+  assert.equal(v.length, 7);
+  assert.equal(v[6], null);
+  for (let k = 1; k < 6; k++) assert.ok(v[k] > v[k - 1], `${v}`);
+  assert.ok(v[0] >= VOICE_VEL_LO && v[5] <= VOICE_VEL_HI);
+  const w = withVocalVels(ev.map((e) => ({ ...e, vel: 85 })), v);
+  assert.equal(w[2].midi, null);
+  assert.equal(w[2].vel, 85);
+  assert.equal(w.at(-1).vel, 85);
+  assert.equal(w[3].vel, v[2]);
+});

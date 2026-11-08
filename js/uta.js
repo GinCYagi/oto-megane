@@ -1,11 +1,11 @@
 // 歌モード：曲の一覧 → 曲名を押す → 線が流れる。
 // T2b：伴奏を鳴らし、線と歌詞は伴奏の時計に合わせて流す。線の太さは楽譜の強弱（声を入れる T6 までの仮）。
-import { parseScore, timeline, accompaniment, transposeOf, slowed, instrumentalSpans } from './score.js?v=48';
-import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=48';
-import { UtaLyrics } from './uta-lyrics.js?v=48';
-import { UtaMap } from './uta-map.js?v=48';
-import { initContrastToggle, contrastDebug } from './contrast.js?v=48';
-import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=48';
+import { parseScore, timeline, accompaniment, transposeOf, slowed, instrumentalSpans } from './score.js?v=49';
+import { UtaLine, withDynamics, withLineHue, vocalVels, withVocalVels } from './uta-line.js?v=49';
+import { UtaLyrics } from './uta-lyrics.js?v=49';
+import { UtaMap } from './uta-map.js?v=49';
+import { initContrastToggle, contrastDebug } from './contrast.js?v=49';
+import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=49';
 
 // 音の切れ目は「両方」（すき間＋字を音の頭に。Gin、2026-11-04）。確かめ用：?cut=none|gap|char で、ほかの案に切り替える。
 // 下の歌詞のいまの字に下線を付ける（U3。Gin、2026-11-04）。確かめ用：?mark=0 で外す
@@ -17,6 +17,9 @@ const MELODY = params.get('melody') !== '0';
 // Gin の歌声（Gin、2026-11-08）。?vocal=1 のときだけ鳴らす（既定はオフ）。歌が鳴るあいだは、仮の主旋律を鳴らさない。
 // ゆっくり・元の本の高さ（ト長調）では、歌の速さと高さが合わないので鳴らさない。読み込めないときは、黙って仮の主旋律に戻す
 const VOCAL = params.get('vocal') === '1';
+// 線の太さと帯の山を、歌声の大きさから取る試し（?width=voice。Gin、2026-11-08）。既定は楽譜の強弱。
+// 一覧を開いたときに録音を読み、元の速さ・ふだんの高さで音ごとの強さを測っておく。間に合わない・読めないときは、黙って楽譜の強弱
+const WIDTH_VOICE = params.get('width') === 'voice';
 const VOCAL_WAIT_SEC = 6; // 歌の読み込みをこれ以上待たない（仮の主旋律で始める）
 /**
  * 曲ごとの歌声のファイル。歌は、?export=1 の伴奏の WAV（曲の 0 秒＝ファイルの EXPORT_HEAD_SEC 秒目）を聞きながら録った。
@@ -195,7 +198,7 @@ async function loadSongs() {
       const res = await fetch(file, { cache: 'no-cache' });
       if (!res.ok) throw new Error(`${res.status}`);
       const text = await res.text();
-      const vocal = VOCAL && VOCALS[file] ? { ...VOCALS[file] } : null;
+      const vocal = (VOCAL || WIDTH_VOICE) && VOCALS[file] ? { ...VOCALS[file] } : null;
       // 押してから待たないよう、ファイルだけ先に取っておく（音にするのは、押したときの AudioContext で）
       if (vocal) {
         vocal.bytes = fetch(vocal.url).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status}`))));
@@ -203,7 +206,8 @@ async function loadSongs() {
       }
       const score = parseScore(text);
       if (score.errors.length) throw new Error(score.errors[0].message);
-      score.vocal = vocal;
+      score.vocal = VOCAL ? vocal : null;
+      if (WIDTH_VOICE && vocal) measureVoice(score, vocal);
       preloadFont(text);
       const li = document.createElement('li');
       const b = document.createElement('button');
@@ -289,7 +293,9 @@ function originalKey(score) {
 function start(score) {
   enterFullscreen();
   const acc = accompaniment(score);
-  const events = withLineHue(withDynamics(timeline(score), acc));
+  let events = withDynamics(timeline(score), acc);
+  if (WIDTH_VOICE && score.voiceVels) events = withVocalVels(events, score.voiceVels.vels); // 音の順番で引き継ぐ（ゆっくり・高さを変えても同じ）
+  events = withLineHue(events);
   const ends = [...events, ...acc].map((e) => e.t + e.dur);
   listView.hidden = true;
   topView.hidden = true;
@@ -341,6 +347,23 @@ function start(score) {
   keepAwake();
   if (isPortrait()) pause(current, 'portrait'); // 縦のあいだは、音を始めずに待つ
   tick();
+}
+
+/** ?width=voice：録音を読み、元の速さ・ふだんの高さで、音ごとの強さを測って score.voiceVels に置く（ゆっくり・元の調の写しにも引き継がれる） */
+function measureVoice(score, vocal) {
+  const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  if (!OAC) return;
+  const holder = {};
+  score.voiceVels = null;
+  vocal.bytes.then((b) => new Promise((ok, ng) => {
+    const c = new OAC(1, 1, 44100);
+    const p = c.decodeAudioData(b.slice(0), ok, ng);
+    p?.then?.(ok, ng);
+  })).then((buf) => {
+    holder.vels = vocalVels(timeline(score), buf.getChannelData(0), buf.sampleRate, -EXPORT_HEAD_SEC + vocal.shift);
+    score.voiceVels = holder;
+    logAudio(`太さを歌声から（${holder.vels.filter((v) => v != null).length} 音）`);
+  }).catch((e) => logAudio(`太さは楽譜から（${e?.message ?? e}）`));
 }
 
 /** 歌声のファイルを、この AudioContext の音にする。VOCAL_WAIT_SEC を過ぎたら諦める（仮の主旋律で始める） */
