@@ -1,6 +1,6 @@
 // 歌モードの歌詞。線の下に、いまの行を大きく、次の行を小さく暗めに出す。
 // 行が替わるときは、次の行がいまの行の場所へ上がるだけにする（明るさを急に変えない）。
-import { HOLD } from './score.js?v=46';
+import { HOLD } from './score.js?v=47';
 
 const NEXT_SCALE = 0.62; // 次の行の大きさ（css/uta.css の .lyric[data-pos="next"] の scale と同じ）
 // 縦の幅が足りないとき（ツールバーありの横など）は、次の行を出さず、いまの行だけを大きく出す（Gin、11/7）。

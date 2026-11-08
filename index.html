@@ -25,8 +25,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=46">
-  <link rel="stylesheet" href="css/uta.css?v=46">
+  <link rel="stylesheet" href="css/style.css?v=47">
+  <link rel="stylesheet" href="css/uta.css?v=47">
 </head>
 <body class="uta">
   <!-- はじめの一枚（11/7）：曲の一覧の前に、なぜ作ったか・だれに向けて作ったか・見かたを出す。ボタンは「歌を選ぶ」1 つだけ。
@@ -35,7 +35,7 @@
     <div class="top-head">
       <h1 id="top-title"><ruby>音<rt>おと</rt></ruby>めがね</h1>
       <p class="top-sub"><span><ruby>歌<rt>うた</rt></ruby>の<ruby>形<rt>かたち</rt></ruby>を、</span><span><ruby>目<rt>め</rt></ruby>で<ruby>見<rt>み</rt></ruby>えるように。</span></p>
-      <button id="btn-choose" class="top-go" type="button"><ruby>歌<rt>うた</rt></ruby>を<ruby>選<rt>えら</rt></ruby>ぶ</button>
+      <button id="btn-choose" class="top-go" type="button"><span><ruby>歌<rt>うた</rt></ruby>を<ruby>選<rt>えら</rt></ruby>ぶ</span></button>
     </div>
     <div class="top-body">
       <section>
@@ -60,7 +60,7 @@
   </section>
 
   <section id="list-view" class="list-view" hidden>
-    <p class="to-top"><button id="btn-top" class="quiet-button" type="button">← はじめの<ruby>画面<rt>がめん</rt></ruby>へ</button></p>
+    <p class="to-top"><button id="btn-top" class="quiet-button" type="button"><span>← はじめの<ruby>画面<rt>がめん</rt></ruby>へ</span></button></p>
     <h1><ruby>音<rt>おと</rt></ruby>めがね</h1>
     <p class="lead"><ruby>歌<rt>うた</rt></ruby>の<ruby>高<rt>たか</rt></ruby>さを、<ruby>線<rt>せん</rt></ruby>の<ruby>上下<rt>じょうげ</rt></ruby>で<ruby>見<rt>み</rt></ruby>せます。<ruby>曲名<rt>きょくめい</rt></ruby>を<ruby>押<rt>お</rt></ruby>してください。</p>
     <ul id="song-list" class="song-list"></ul>
@@ -70,7 +70,7 @@
       <p><a class="quiet-link" href="lab.html"><ruby>試<rt>ため</rt></ruby>しの<ruby>音<rt>おと</rt></ruby>・マイク・<ruby>曲<rt>きょく</rt></ruby>のファイルを<ruby>見<rt>み</rt></ruby>る（<ruby>実験<rt>じっけん</rt></ruby>のページ）</a></p>
       <!-- 見やすさ：正面にボタンを増やさず、奥に一つだけ（T18） -->
       <details class="ease-settings">
-        <summary><ruby>見<rt>み</rt></ruby>やすさ</summary>
+        <summary><span><ruby>見<rt>み</rt></ruby>やすさ</span></summary>
         <label class="key-choice"><input type="checkbox" id="contrast-toggle"> <span><ruby>白<rt>しろ</rt></ruby><ruby>黒<rt>くろ</rt></ruby>（くっきり）</span></label>
       </details>
       <!-- ?debug=1 のときだけ出す（確かめ用） -->
@@ -81,7 +81,7 @@
   <section id="play-view" class="play-view" hidden>
     <div class="play-bar">
       <h2 class="play-title"><span id="play-title"></span> <small id="play-note" class="play-note"></small></h2>
-      <button id="btn-back" type="button"><ruby>一覧<rt>いちらん</rt></ruby>へ</button>
+      <button id="btn-back" type="button"><span><ruby>一覧<rt>いちらん</rt></ruby>へ</span></button>
     </div>
     <canvas id="uta-map" class="uta-map" role="img" aria-label="曲全体の地図。山の高さは歌の大きさ。縦の印がいまの所で、右の端が曲の終わり"></canvas>
     <canvas id="uta-line" class="uta-line" aria-label="歌の高さの線。右から左へ流れ、上ほど高い音。太さは音の大きさで、大きく歌う所ほど太い。線の上の字が、その音で歌う字。左から 3 分の 1 の縦線が、いま歌っている所"></canvas>
@@ -122,10 +122,10 @@
         <li><ruby>画面<rt>がめん</rt></ruby>の<ruby>向<rt>む</rt></ruby>きが<ruby>固定<rt>こてい</rt></ruby>されていたら、<br><ruby>外<rt>はず</rt></ruby>してください</li>
         <li>アプリの<ruby>中<rt>なか</rt></ruby>で<ruby>開<rt>ひら</rt></ruby>いたときは、<br>Safari か Chrome で<ruby>開<rt>ひら</rt></ruby>き<ruby>直<rt>なお</rt></ruby>してください</li>
       </ul>
-      <button id="btn-back-portrait" type="button"><ruby>一覧<rt>いちらん</rt></ruby>へ</button>
+      <button id="btn-back-portrait" type="button"><span><ruby>一覧<rt>いちらん</rt></ruby>へ</span></button>
     </div>
   </section>
 
-  <script type="module" src="js/uta.js?v=46"></script>
+  <script type="module" src="js/uta.js?v=47"></script>
 </body>
 </html>

@@ -1,11 +1,11 @@
 // 歌モード：曲の一覧 → 曲名を押す → 線が流れる。
 // T2b：伴奏を鳴らし、線と歌詞は伴奏の時計に合わせて流す。線の太さは楽譜の強弱（声を入れる T6 までの仮）。
-import { parseScore, timeline, accompaniment, transposeOf, slowed, instrumentalSpans } from './score.js?v=46';
-import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=46';
-import { UtaLyrics } from './uta-lyrics.js?v=46';
-import { UtaMap } from './uta-map.js?v=46';
-import { initContrastToggle, contrastDebug } from './contrast.js?v=46';
-import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=46';
+import { parseScore, timeline, accompaniment, transposeOf, slowed, instrumentalSpans } from './score.js?v=47';
+import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=47';
+import { UtaLyrics } from './uta-lyrics.js?v=47';
+import { UtaMap } from './uta-map.js?v=47';
+import { initContrastToggle, contrastDebug } from './contrast.js?v=47';
+import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=47';
 
 // 音の切れ目は「両方」（すき間＋字を音の頭に。Gin、2026-11-04）。確かめ用：?cut=none|gap|char で、ほかの案に切り替える。
 // 下の歌詞のいまの字に下線を付ける（U3。Gin、2026-11-04）。確かめ用：?mark=0 で外す
@@ -189,7 +189,8 @@ async function loadSongs() {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'song-button';
-      b.innerHTML = rubyHtml(score.title);
+      // ボタンは inline-flex なので、ルビと裸の仮名が別々に縦の真ん中へ寄る（iPhone の Safari、11/8）。1 つの span で包んで 1 行に並べる
+      b.innerHTML = `<span>${rubyHtml(score.title)}</span>`;
       li.append(b);
       // 高さを選べるのは、「移調」と「元の調」を書いた曲だけ（いまはふるさと。Gin、2026-11-05）。ふだんは移調した高さ
       let orig = null;
