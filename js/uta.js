@@ -1,11 +1,11 @@
 // 歌モード：曲の一覧 → 曲名を押す → 線が流れる。
 // T2b：伴奏を鳴らし、線と歌詞は伴奏の時計に合わせて流す。線の太さは楽譜の強弱（声を入れる T6 までの仮）。
-import { parseScore, timeline, accompaniment, transposeOf, slowed, instrumentalSpans } from './score.js?v=47';
-import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=47';
-import { UtaLyrics } from './uta-lyrics.js?v=47';
-import { UtaMap } from './uta-map.js?v=47';
-import { initContrastToggle, contrastDebug } from './contrast.js?v=47';
-import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=47';
+import { parseScore, timeline, accompaniment, transposeOf, slowed, instrumentalSpans } from './score.js?v=48';
+import { UtaLine, withDynamics, withLineHue } from './uta-line.js?v=48';
+import { UtaLyrics } from './uta-lyrics.js?v=48';
+import { UtaMap } from './uta-map.js?v=48';
+import { initContrastToggle, contrastDebug } from './contrast.js?v=48';
+import { UtaAccompaniment, melodyEvents, renderSong, encodeWav, EXPORT_HEAD_SEC } from './uta-audio.js?v=48';
 
 // 音の切れ目は「両方」（すき間＋字を音の頭に。Gin、2026-11-04）。確かめ用：?cut=none|gap|char で、ほかの案に切り替える。
 // 下の歌詞のいまの字に下線を付ける（U3。Gin、2026-11-04）。確かめ用：?mark=0 で外す
@@ -14,6 +14,19 @@ const CUT = params.get('cut') || 'both';
 const MARK = params.get('mark') !== '0';
 // 仮の主旋律：歌声が入る T6 までは、元の本の旋律の段を柔らかい音で重ねて鳴らす（Gin、2026-11-05「取りあえずこんな感じと父に見せる」）。?melody=0 で消す
 const MELODY = params.get('melody') !== '0';
+// Gin の歌声（Gin、2026-11-08）。?vocal=1 のときだけ鳴らす（既定はオフ）。歌が鳴るあいだは、仮の主旋律を鳴らさない。
+// ゆっくり・元の本の高さ（ト長調）では、歌の速さと高さが合わないので鳴らさない。読み込めないときは、黙って仮の主旋律に戻す
+const VOCAL = params.get('vocal') === '1';
+const VOCAL_WAIT_SEC = 6; // 歌の読み込みをこれ以上待たない（仮の主旋律で始める）
+/**
+ * 曲ごとの歌声のファイル。歌は、?export=1 の伴奏の WAV（曲の 0 秒＝ファイルの EXPORT_HEAD_SEC 秒目）を聞きながら録った。
+ * shift：歌の立ち上がりと楽譜の主旋律の音の頭を、句の頭で比べたずれ（中央値）。30 ミリ秒を超えた曲だけ、その分早める。
+ * 測った値（2026-11-08）：ふるさと +28 ms（句の頭 11 か所）、春の小川 +33 ms（12 か所）。どちらも歌が楽譜より遅い
+ */
+const VOCALS = {
+  'songs/furusato.txt': { url: 'songs/furusato_vocal.m4a', shift: 0 },
+  'songs/haru_no_ogawa.txt': { url: 'songs/haru_no_ogawa_vocal.m4a', shift: -0.033 },
+};
 // 確かめ用：?debug=1 で、画面の下に音の仕組みの状態を出す（iPhone の手元で、何が起きているかを見るため）
 const DEBUG = params.get('debug') === '1';
 // 確かめ用：?minfs=px で、1 行に替える字の大きさ（ONE_ROW_BELOW_PX）を試す
@@ -182,8 +195,15 @@ async function loadSongs() {
       const res = await fetch(file, { cache: 'no-cache' });
       if (!res.ok) throw new Error(`${res.status}`);
       const text = await res.text();
+      const vocal = VOCAL && VOCALS[file] ? { ...VOCALS[file] } : null;
+      // 押してから待たないよう、ファイルだけ先に取っておく（音にするのは、押したときの AudioContext で）
+      if (vocal) {
+        vocal.bytes = fetch(vocal.url).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status}`))));
+        vocal.bytes.catch(() => {}); // 取れなくても、押したときに仮の主旋律に戻す
+      }
       const score = parseScore(text);
       if (score.errors.length) throw new Error(score.errors[0].message);
+      score.vocal = vocal;
       preloadFont(text);
       const li = document.createElement('li');
       const b = document.createElement('button');
@@ -302,7 +322,14 @@ function start(score) {
     const me = current;
     const sound = MELODY ? [...acc, ...melodyEvents(events)].sort((a, b) => a.t - b.t) : acc;
     current.audio = new UtaAccompaniment(audio.ctx, sound.filter((e) => e.t >= from));
-    me.starting = audio.ready.then(() => {
+    // 歌声（?vocal=1）。元の速さ・ふだんの高さのときだけ。音の部品が起きたあと、歌も音になってから始める
+    const vocal = score.vocal && !score.slow && !score.keyNote ? score.vocal : null;
+    const vocalReady = vocal ? decodeVocal(audio.ctx, vocal) : null;
+    me.starting = audio.ready.then(() => vocalReady && vocalReady.then((buf) => {
+      if (current !== me || !me.audio) return;
+      me.audio.setVocal(buf, -EXPORT_HEAD_SEC + vocal.shift);
+      logAudio(`歌声 ${buf.duration.toFixed(1)} 秒`);
+    }, (e) => logAudio(`歌声なし（${e?.message ?? e}）。仮の主旋律で鳴らす`))).then(() => {
       if (current !== me) return; // 起きるのを待つあいだに、一覧へ戻った
       me.ready = true;
       if (!me.paused) beginAudio(me); // 縦向き・裏に回ったあいだは始めずに待つ（続けるときに始める）
@@ -314,6 +341,17 @@ function start(score) {
   keepAwake();
   if (isPortrait()) pause(current, 'portrait'); // 縦のあいだは、音を始めずに待つ
   tick();
+}
+
+/** 歌声のファイルを、この AudioContext の音にする。VOCAL_WAIT_SEC を過ぎたら諦める（仮の主旋律で始める） */
+function decodeVocal(ctx, vocal) {
+  const decode = vocal.bytes.then((b) => new Promise((ok, ng) => {
+    // 古い Safari は、返り値の Promise ではなく、受け取りの関数で返す
+    const p = ctx.decodeAudioData(b.slice(0), ok, ng);
+    p?.then?.(ok, ng);
+  }));
+  const timeout = new Promise((_, ng) => setTimeout(() => ng(new Error('timeout')), VOCAL_WAIT_SEC * 1000));
+  return Promise.race([decode, timeout]);
 }
 
 /** 伴奏を鳴らし始める。曲の頭の LEAD_SEC 前から数える（待ったあとも「まもなく始まります」から） */

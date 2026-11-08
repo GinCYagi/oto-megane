@@ -4,7 +4,8 @@
 
 const LOOKAHEAD_SEC = 0.6;
 const TICK_MS = 100;
-const RELEASE_SEC = 0.08; // 音の終わりの消え方（ぷつっと切れないように）
+const RELEASE_SEC = 0.08;
+const VOCAL_GAIN = 0.9; // 歌声の音量（伴奏は out の 0.7 とコンプレッサーを通る） // 音の終わりの消え方（ぷつっと切れないように）
 
 /** MIDI の音の番号を周波数に */
 export function midiToHz(m) {
@@ -37,11 +38,41 @@ export class UtaAccompaniment {
     this.timer = 0;
   }
 
+  /**
+   * Gin の歌声（?vocal=1。Gin、2026-11-08）。buffer：歌の AudioBuffer。at：歌のファイルの 0 秒が、曲の何秒目に当たるか。
+   * 伴奏と同じ AudioContext・同じ時計で鳴らすので、止める（suspend）・続ける（resume）も一緒に止まり・動く。
+   * 歌が鳴るあいだは、仮の主旋律を鳴らさない。
+   */
+  setVocal(buffer, at) {
+    if (this.stopped) return;
+    this.vocal = { buffer, at };
+    this.noMelody = true;
+    if (this.started) this.startVocal();
+  }
+
+  startVocal() {
+    const { ctx } = this;
+    const v = this.vocal;
+    const when = this.startAt + v.at;
+    const now = ctx.currentTime;
+    if (now - when >= v.buffer.duration) return;
+    const src = ctx.createBufferSource();
+    src.buffer = v.buffer;
+    const g = ctx.createGain();
+    g.gain.value = VOCAL_GAIN;
+    src.connect(g).connect(ctx.destination);
+    // 曲の途中から（?from= など）なら、歌のファイルもその所から
+    if (when >= now) src.start(when); else src.start(now, now - when);
+    v.src = src;
+    v.gain = g;
+  }
+
   /** 曲の 0 秒を、AudioContext の時刻 startAt に合わせて鳴らし始める */
   start(startAt) {
     if (this.stopped) return;
     this.startAt = startAt;
     this.started = true;
+    if (this.vocal) this.startVocal();
     this.schedule();
     this.timer = setInterval(() => this.schedule(), TICK_MS);
   }
@@ -58,7 +89,7 @@ export class UtaAccompaniment {
       const e = this.events[this.next++];
       const at = this.startAt + e.t;
       if (at < this.ctx.currentTime - 0.05) continue; // 遅れて予約しそこねた音は飛ばす（まとめて鳴らない）
-      if (e.part === '旋律') { this.sing(e.midis[0], at, e.dur, velToGain(e.vel)); continue; }
+      if (e.part === '旋律') { if (!this.noMelody) this.sing(e.midis[0], at, e.dur, velToGain(e.vel)); continue; }
       for (const m of e.midis) this.note(m, at, e.dur, velToGain(e.vel));
     }
   }
@@ -135,6 +166,13 @@ export class UtaAccompaniment {
     this.out.gain.cancelScheduledValues(now);
     this.out.gain.setTargetAtTime(0, now, 0.03);
     setTimeout(() => this.out.disconnect(), 300);
+    const v = this.vocal;
+    if (v?.src) {
+      v.gain.gain.cancelScheduledValues(now);
+      v.gain.gain.setTargetAtTime(0, now, 0.03);
+      try { v.src.stop(now + 0.3); } catch { /* もう止まっている */ }
+      setTimeout(() => v.gain.disconnect(), 400);
+    }
   }
 }
 
